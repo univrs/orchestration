@@ -172,7 +172,7 @@ async fn main() -> anyhow::Result<()> {
             resources_allocatable: NodeResources { cpu_cores: 1.8, memory_mb: 3500, disk_mb: 45000 },
         };
         // The actual downcast
-      if let Ok(concrete_mock_cm) = cm_trait_for_downcast.downcast_arc::<MockClusterManager>() {
+      if let Ok(concrete_mock_cm) = cm_trait_for_downcast.downcast_mut::<MockClusterManager>() {
             tracing::info!("[main via downcast] Simulating add_node for node2: {}", node2_id);
             concrete_mock_cm.add_node(node2).await;
         } else {
