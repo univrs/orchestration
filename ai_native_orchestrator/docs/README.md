@@ -9,6 +9,7 @@ I'll go through each crate.
 
 ```toml
 [workspace]
+    
 members = [
     "orchestrator_core",
     "orchestrator_shared_types",
@@ -16,13 +17,15 @@ members = [
     "cluster_manager_interface",
     "scheduler_interface",
     # Future crates:
-    # "mcp_server",
-    # "cloud_agnostic_layer",
-    # "orchestrator_cli",
+        # "mcp_server",
+        # "cloud_agnostic_layer",
+        # "orchestrator_cli",
 ]
-resolver = "2"
+
+resolver = "2" # Recommended for new projects
 
 [workspace.dependencies]
+# Common dependencies will go here
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -30,9 +33,9 @@ thiserror = "1.0"
 uuid = { version = "1", features = ["v4", "serde"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-async-trait = "0.1.77"
-downcast-rs = "0.2.1" # Or whatever version you settled on
+downcast-rs = "1.2.1"
 anyhow = "1.0"
+async-trait = "0.1.77" # For async methods in traits
 ```
 
 *   **Good:**
