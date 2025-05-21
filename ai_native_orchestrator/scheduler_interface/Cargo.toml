@@ -1,0 +1,11 @@
+[package]
+name = "scheduler_interface"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+orchestrator_shared_types = { path = "../orchestrator_shared_types" }
+cluster_manager_interface = { path = "../cluster_manager_interface" } # Schedulers need info about nodes
+tokio = { workspace = true }
+async-trait = { workspace = true }
+thiserror = { workspace = true }

@@ -1,6 +1,8 @@
 ### Rust Orchestration 
 
-Let's break down how we can start realizing this vision with Rust code, focusing on **Phase 1: Core Rust Orchestration Primitives** as outlined in your implementation roadmap.
+Let's break down how we can start realizing this vision with Rust code, focusing on 
+
+**Phase 1: Core Rust Orchestration Primitives** as outlined in your implementation roadmap.
 
 We'll aim to create a foundational structure that can be expanded upon. This will involve setting up a Cargo workspace and defining some initial crates for the core components.
 

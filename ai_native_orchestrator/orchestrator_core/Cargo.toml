@@ -1,0 +1,14 @@
+[package]
+name = "orchestrator_core"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+orchestrator_shared_types = { path = "../orchestrator_shared_types" }
+container_runtime_interface = { path = "../container_runtime_interface" }
+cluster_manager_interface = { path = "../cluster_manager_interface" }
+scheduler_interface = { path = "../scheduler_interface" }
+
+tokio = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }

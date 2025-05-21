@@ -1,0 +1,11 @@
+[package]
+name = "container_runtime_interface"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+orchestrator_shared_types = { path = "../orchestrator_shared_types" }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true } # For config structs
