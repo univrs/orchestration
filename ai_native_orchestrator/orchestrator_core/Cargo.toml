@@ -17,7 +17,8 @@ cluster_manager_interface = { path = "../cluster_manager_interface" }
 scheduler_interface = { path = "../scheduler_interface" }
 
 tokio = { workspace = true }
-tracing = { workspace = true }
+tracing = { workspace = true } 
+tracing-subscriber = { workspace = true }
 thiserror = { workspace = true }
 uuid = { workspace = true } # For main.rs
 async-trait = { workspace = true } # For mock impls in main.rs

@@ -382,10 +382,11 @@ pub async fn start_orchestrator_service(
     cluster_manager: Arc<dyn ClusterManager>,
     scheduler: Arc<dyn Scheduler>,
 ) -> Result<mpsc::Sender<WorkloadDefinition>> {
+    //use tracing_subscriber::{fmt, EnvFilter};
     // Initialize logging
-    tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env().add_directive("info".parse().unwrap()))
-        .init();
+    //tracing_subscriber::fmt()
+    //    .with_env_filter(tracing_subscriber::EnvFilter::from_default_env().add_directive("info".parse().unwrap()))
+    //    .init();
 
     let mut orchestrator = Orchestrator::new(runtime, cluster_manager, scheduler);
     let workload_tx = orchestrator.get_workload_sender();

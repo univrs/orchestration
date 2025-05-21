@@ -114,8 +114,13 @@ impl ClusterManager for MockClusterManager {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // Initialize logging
-    tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env().add_directive("info".parse()?)) // Default to info
+    //tracing_subscriber::fmt()
+    //    .with_env_filter(tracing_subscriber::EnvFilter::from_default_env().add_directive("info".parse()?)) // Default to info
+    //    .init();
+        // Initialize logging (Ensure tracing_subscriber is a dependency of orchestrator_core)
+    use tracing_subscriber::{fmt, EnvFilter}; // Add use statement here if not global
+    fmt()
+        .with_env_filter(EnvFilter::from_default_env().add_directive("info".parse()?)) // Default to info
         .init();
 
     let runtime = Arc::new(MockRuntime::default());
