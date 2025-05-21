@@ -23,6 +23,6 @@ thiserror = "1.0"
 uuid = { version = "1", features = ["v4", "serde"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-downcast-rs = "1.2.1" 
+downcast-rs = "1.2.1"
 anyhow = "1.0"
 async-trait = "0.1.77" # For async methods in traits

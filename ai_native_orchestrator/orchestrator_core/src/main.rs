@@ -1,5 +1,4 @@
 // orchestrator_core/src/main.rs
-// ... (imports) ...
 use std::sync::Arc;
 use tokio;
 
@@ -9,11 +8,11 @@ use scheduler_interface::SimpleScheduler;
 use uuid::Uuid;
 use std::collections::HashMap;
 
+
 use async_trait::async_trait;
 use container_runtime_interface::{ContainerRuntime, CreateContainerOptions, ContainerStatus};
 use cluster_manager_interface::{ClusterManager, ClusterEvent}; // Make sure this is correct path
 use tokio::sync::watch;
-//use downcast_rs::DowncastArc; // Not strictly needed for the main.rs usage side, but good for clarity if trait is modified
 
 // --- Mock Implementations (simplified) ---
 #[derive(Default, Clone)]
@@ -81,7 +80,10 @@ struct MockClusterManager {
 impl MockClusterManager {
     fn new() -> Self { // Removed receiver from direct return, orchestrator will subscribe
         let (tx, _rx) = watch::channel(None); // _rx is not used here directly
-        MockClusterManager { event_tx: tx, nodes: Arc::new(tokio::sync::Mutex::new(HashMap::new())) }
+        MockClusterManager { 
+            event_tx: tx, 
+            nodes: Arc::new(tokio::sync::Mutex::new(HashMap::new())) 
+        }
     }
     // This method is specific to MockClusterManager and is what we want to call via downcasting
     async fn add_node(&self, node: Node) {
@@ -172,9 +174,13 @@ async fn main() -> anyhow::Result<()> {
             resources_allocatable: NodeResources { cpu_cores: 1.8, memory_mb: 3500, disk_mb: 45000 },
         };
         // The actual downcast
-        if let Ok(concrete_mock_cm) = cm_trait_for_downcast.downcast_arc::<MockClusterManager>() {
+        // Direct cast to the concrete type
+        //let concrete_mock_cm = cm_trait_for_downcast.clone();
+        let trait_ref = cm_trait_for_downcast.as_ref();
+        // Cast using as_any() and downcast_ref from the Downcast trait
+        if let Some(mock_cm) = trait_ref.downcast_ref::<MockClusterManager>() {
             tracing::info!("[main via downcast] Simulating add_node for node2: {}", node2_id);
-            concrete_mock_cm.add_node(node2).await;
+            mock_cm.add_node(node2).await;
         } else {
             tracing::error!("[main via downcast] Failed to downcast to MockClusterManager to add node2");
         }
