@@ -5,7 +5,7 @@ members = [
     "orchestrator_shared_types",
     "container_runtime_interface",
     "cluster_manager_interface",
-    "scheduler_interface", "state_store_interface",
+    "scheduler_interface", "state_store_interface", "youki_runtime",
     # Future crates:
         # "mcp_server",
         # "cloud_agnostic_layer",
