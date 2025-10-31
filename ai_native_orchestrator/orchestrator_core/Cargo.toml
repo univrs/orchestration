@@ -15,6 +15,7 @@ orchestrator_shared_types = { path = "../orchestrator_shared_types" }
 container_runtime_interface = { path = "../container_runtime_interface" }
 cluster_manager_interface = { path = "../cluster_manager_interface" }
 scheduler_interface = { path = "../scheduler_interface" }
+state_store_interface = { path = "../state_store_interface" }
 
 tokio = { workspace = true }
 tracing = { workspace = true } 

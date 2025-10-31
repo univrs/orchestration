@@ -1,0 +1,23 @@
+[package]
+name = "state_store_interface"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+orchestrator_shared_types = { path = "../orchestrator_shared_types" }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Optional: etcd backend
+etcd-client = { version = "0.13", optional = true }
+
+# Optional: in-memory backend with persistence snapshots
+bincode = { version = "1.3", optional = true }
+
+[features]
+default = ["in-memory"]
+in-memory = ["bincode"]
+etcd = ["etcd-client"]
