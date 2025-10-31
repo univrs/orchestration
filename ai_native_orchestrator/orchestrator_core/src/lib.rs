@@ -1,6 +1,5 @@
 use std::sync::Arc;
-use tokio::sync::{mpsc, Mutex};
-use std::collections::HashMap;
+use tokio::sync::mpsc;
 use uuid;
 
 use orchestrator_shared_types::{
@@ -9,19 +8,12 @@ use orchestrator_shared_types::{
 };
 use container_runtime_interface::ContainerRuntime;
 use cluster_manager_interface::{ClusterEvent, ClusterManager};
-use scheduler_interface::{ScheduleDecision, ScheduleRequest, Scheduler}; // Using SimpleScheduler for now
+use scheduler_interface::{ScheduleDecision, ScheduleRequest, Scheduler};
+use state_store_interface::StateStore;
 use tracing::{error, info, warn, trace};
 
-// In-memory state for now. This would be replaced by a persistent store (e.g., etcd, TiKV wrapper).
-#[derive(Default)]
-struct OrchestratorState {
-    nodes: HashMap<NodeId, Node>,
-    workloads: HashMap<WorkloadId, Arc<WorkloadDefinition>>,
-    instances: HashMap<WorkloadId, Vec<WorkloadInstance>>, // Instances per workload
-}
-
 pub struct Orchestrator {
-    state: Arc<Mutex<OrchestratorState>>,
+    state_store: Arc<dyn StateStore>,
     runtime: Arc<dyn ContainerRuntime>,
     cluster_manager: Arc<dyn ClusterManager>,
     scheduler: Arc<dyn Scheduler>,
@@ -32,13 +24,14 @@ pub struct Orchestrator {
 
 impl Orchestrator {
     pub fn new(
+        state_store: Arc<dyn StateStore>,
         runtime: Arc<dyn ContainerRuntime>,
         cluster_manager: Arc<dyn ClusterManager>,
         scheduler: Arc<dyn Scheduler>,
     ) -> Self {
         let (workload_tx, workload_rx) = mpsc::channel(100); // Buffer size 100
         Orchestrator {
-            state: Arc::new(Mutex::new(OrchestratorState::default())),
+            state_store,
             runtime,
             cluster_manager,
             scheduler,
@@ -116,33 +109,39 @@ impl Orchestrator {
 
     async fn handle_workload_update(&self, workload_def: WorkloadDefinition) -> Result<()> {
         let workload_id = workload_def.id;
-        let workload_def_arc = Arc::new(workload_def);
-        {
-            let mut state = self.state.lock().await;
-            state.workloads.insert(workload_id, workload_def_arc.clone());
-            state.instances.entry(workload_id).or_insert_with(Vec::new); // Ensure entry exists
-        }
+
+        // Store workload in persistent state
+        self.state_store.put_workload(workload_def.clone()).await?;
+
         info!("Workload {} registered. Triggering reconciliation.", workload_id);
-        self.reconcile_workload(&workload_def_arc).await
+        self.reconcile_workload(&Arc::new(workload_def)).await
     }
     
     async fn handle_cluster_event(&self, event: ClusterEvent) -> Result<()> {
-        let mut state = self.state.lock().await;
         match event {
             ClusterEvent::NodeAdded(node) | ClusterEvent::NodeUpdated(node) => {
                 info!("Node {} added/updated.", node.id);
+
+                // Check if node already exists
+                let existing = self.state_store.get_node(&node.id).await?;
+
                 // Initialize the runtime on the new node if it's newly added and ready
-                if node.status == orchestrator_shared_types::NodeStatus::Ready && !state.nodes.contains_key(&node.id) {
+                if node.status == orchestrator_shared_types::NodeStatus::Ready && existing.is_none() {
                      match self.runtime.init_node(node.id).await {
                         Ok(_) => info!("Runtime initialized on node {}", node.id),
                         Err(e) => error!("Failed to initialize runtime on node {}: {:?}", node.id, e),
                      }
                 }
-                state.nodes.insert(node.id, node);
+
+                // Store node in persistent state
+                self.state_store.put_node(node).await?;
             }
             ClusterEvent::NodeRemoved(node_id) => {
                 info!("Node {} removed.", node_id);
-                state.nodes.remove(&node_id);
+
+                // Remove node from persistent state
+                self.state_store.delete_node(&node_id).await?;
+
                 // TODO: Handle workloads running on the removed node (reschedule them)
             }
         }
@@ -151,13 +150,12 @@ impl Orchestrator {
 
     async fn reconcile_all_workloads(&self) -> Result<()> {
         info!("Reconciling all workloads...");
-        let workloads_to_reconcile = {
-            let state = self.state.lock().await;
-            state.workloads.values().cloned().collect::<Vec<_>>()
-        };
 
-        for workload_def in workloads_to_reconcile {
-            if let Err(e) = self.reconcile_workload(&workload_def).await {
+        // Get all workloads from persistent state
+        let workloads = self.state_store.list_workloads().await?;
+
+        for workload_def in workloads {
+            if let Err(e) = self.reconcile_workload(&Arc::new(workload_def.clone())).await {
                 error!("Failed to reconcile workload {}: {:?}", workload_def.id, e);
                 // Continue to next workload
             }
@@ -171,71 +169,68 @@ impl Orchestrator {
         info!("Reconciling workload: {} ({})", workload_def.name, workload_def.id);
 
         // Phase 1: Determine what needs to be done (read state, decide action)
-        // This scope controls the lifetime of the state lock for reading.
-        let action = {
-            let mut state = self.state.lock().await;
-            let instances_vec_mut_ref = state.instances.entry(workload_def.id).or_default();
-            
-            // Clone for calculations and for passing to scheduler if needed,
-            // releasing the direct borrow from instances_vec_mut_ref sooner.
-            let current_instances_clone: Vec<WorkloadInstance> = instances_vec_mut_ref.clone();
+        // Get current instances from persistent state
+        let current_instances = self.state_store
+            .list_instances_for_workload(&workload_def.id)
+            .await?;
 
-            let desired_replicas = workload_def.replicas;
-            let current_active_replicas = current_instances_clone // Use the clone
+        let desired_replicas = workload_def.replicas;
+        let current_active_replicas = current_instances
+            .iter()
+            .filter(|inst| {
+                matches!(inst.status, WorkloadInstanceStatus::Running | WorkloadInstanceStatus::Pending)
+            })
+            .count() as u32;
+
+        info!(
+            "Workload {}: Desired replicas: {}, Current active (running/pending): {}",
+            workload_def.id, desired_replicas, current_active_replicas
+        );
+
+        let action = if current_active_replicas < desired_replicas {
+            let num_to_schedule = desired_replicas - current_active_replicas;
+
+            // Get available nodes from persistent state
+            let all_nodes = self.state_store.list_nodes().await?;
+            let available_nodes_for_scheduling: Vec<Node> = all_nodes
+                .into_iter()
+                .filter(|n| n.status == orchestrator_shared_types::NodeStatus::Ready)
+                .collect();
+
+            if available_nodes_for_scheduling.is_empty() {
+                warn!(
+                    "No ready nodes available to schedule {} new instances for workload {}",
+                    num_to_schedule, workload_def.id
+                );
+                WorkloadAction::None
+            } else {
+                WorkloadAction::ScheduleNew {
+                    num_to_schedule,
+                    current_instances_state: current_instances.clone(),
+                    available_nodes: available_nodes_for_scheduling,
+                }
+            }
+        } else if current_active_replicas > desired_replicas {
+            let num_to_remove = current_active_replicas - desired_replicas;
+
+            // Select which specific instances to remove
+            let instances_to_remove = current_instances
                 .iter()
                 .filter(|inst| {
                     matches!(inst.status, WorkloadInstanceStatus::Running | WorkloadInstanceStatus::Pending)
                 })
-                .count() as u32;
+                .take(num_to_remove as usize)
+                .cloned()
+                .collect::<Vec<_>>();
 
-            info!(
-                "Workload {}: Desired replicas: {}, Current active (running/pending): {}",
-                workload_def.id, desired_replicas, current_active_replicas
-            );
-
-            if current_active_replicas < desired_replicas {
-                let num_to_schedule = desired_replicas - current_active_replicas;
-                let available_nodes_for_scheduling: Vec<Node> = state
-                    .nodes
-                    .values()
-                    .filter(|n| n.status == orchestrator_shared_types::NodeStatus::Ready)
-                    .cloned()
-                    .collect();
-
-                if available_nodes_for_scheduling.is_empty() {
-                    warn!(
-                        "No ready nodes available to schedule {} new instances for workload {}",
-                        num_to_schedule, workload_def.id
-                    );
-                    WorkloadAction::None // Or a specific "NoNodes" action
-                } else {
-                    WorkloadAction::ScheduleNew {
-                        num_to_schedule,
-                        current_instances_state: current_instances_clone, // Pass the clone
-                        available_nodes: available_nodes_for_scheduling,
-                    }
-                }
-            } else if current_active_replicas > desired_replicas {
-                let num_to_remove = current_active_replicas - desired_replicas;
-                // TODO: Select which specific instances to remove
-                let instances_to_remove = current_instances_clone
-                    .iter()
-                    .filter(|inst| {
-                        matches!(inst.status, WorkloadInstanceStatus::Running | WorkloadInstanceStatus::Pending)
-                    })
-                    .take(num_to_remove as usize)
-                    .cloned()
-                    .collect::<Vec<_>>();
-
-                if !instances_to_remove.is_empty() {
-                     WorkloadAction::RemoveInstances { instances_to_remove }
-                } else {
-                     WorkloadAction::None // Should not happen if num_to_remove > 0 and instances exist
-                }
+            if !instances_to_remove.is_empty() {
+                 WorkloadAction::RemoveInstances { instances_to_remove }
             } else {
-                WorkloadAction::None // Already reconciled
+                 WorkloadAction::None
             }
-        }; // MutexGuard for `state` is dropped here
+        } else {
+            WorkloadAction::None // Already reconciled
+        };
 
         // Phase 2: Execute the action (potentially involves I/O, no state lock initially)
         match action {
@@ -258,10 +253,6 @@ impl Orchestrator {
                     .schedule(&schedule_request, &available_nodes)
                     .await?;
 
-                // Re-acquire lock to update state with new instances
-                let mut state = self.state.lock().await;
-                let instances_vec_mut_ref = state.instances.entry(workload_def.id).or_default();
-
                 for decision in decisions.into_iter().take(num_to_schedule as usize) {
                     match decision {
                         ScheduleDecision::AssignNode(node_id) => {
@@ -274,17 +265,15 @@ impl Orchestrator {
                                     workload_id: workload_def.id,
                                     node_id,
                                 };
-                                
-                                // Temporarily drop lock for runtime call if it's long or might re-enter
-                                // For now, assuming runtime.create_container is reasonably fast or we manage locks carefully.
-                                // If it's very long, you'd drop `state` guard, call runtime, then re-acquire.
-                                // This example keeps it simple if `create_container` is not expected to deadlock or be too slow.
+
                                 match self.runtime.create_container(container_config, &options).await {
                                     Ok(container_id) => {
                                         info!(
                                             "Container {} created for workload {} on node {}",
                                             container_id, workload_def.id, node_id
                                         );
+
+                                        // Create new instance and save to persistent state
                                         let new_instance = WorkloadInstance {
                                             id: uuid::Uuid::new_v4(),
                                             workload_id: workload_def.id,
@@ -292,7 +281,10 @@ impl Orchestrator {
                                             container_ids: vec![container_id],
                                             status: WorkloadInstanceStatus::Pending,
                                         };
-                                        instances_vec_mut_ref.push(new_instance);
+
+                                        if let Err(e) = self.state_store.put_instance(new_instance).await {
+                                            error!("Failed to store instance in state: {:?}", e);
+                                        }
                                     }
                                     Err(e) => {
                                         error!(
@@ -327,10 +319,9 @@ impl Orchestrator {
                 info!("Need to remove {} instances for workload {}", instances_to_remove.len(), workload_def.id);
                 for instance_to_remove in instances_to_remove {
                     info!("Attempting to remove instance {} (containers: {:?}) of workload {}", instance_to_remove.id, instance_to_remove.container_ids, workload_def.id);
+
+                    // Stop and remove containers
                     for container_id in &instance_to_remove.container_ids {
-                        // Drop state lock before long I/O for stopping/removing container
-                        // This part needs careful lock management if runtime calls are slow or might re-enter.
-                        // For simplicity now, we'll assume it's acceptable or runtime calls are quick.
                         match self.runtime.stop_container(container_id).await {
                             Ok(_) => info!("Stopped container {}", container_id),
                             Err(e) => error!("Failed to stop container {}: {:?}", container_id, e),
@@ -340,10 +331,12 @@ impl Orchestrator {
                             Err(e) => error!("Failed to remove container {}: {:?}", container_id, e),
                         }
                     }
-                    // Re-acquire lock to update state
-                    let mut state = self.state.lock().await;
-                    let instances_vec_mut_ref = state.instances.entry(workload_def.id).or_default();
-                    instances_vec_mut_ref.retain(|inst| inst.id != instance_to_remove.id);
+
+                    // Remove instance from persistent state
+                    let instance_id = instance_to_remove.id.to_string();
+                    if let Err(e) = self.state_store.delete_instance(&instance_id).await {
+                        error!("Failed to delete instance {} from state: {:?}", instance_id, e);
+                    }
                 }
             }
             WorkloadAction::None => {
@@ -378,17 +371,15 @@ enum WorkloadAction {
 // This would typically be in a `main.rs` file if `orchestrator_core` was a binary crate.
 // For now, let's imagine a function that sets it up.
 pub async fn start_orchestrator_service(
+    state_store: Arc<dyn StateStore>,
     runtime: Arc<dyn ContainerRuntime>,
     cluster_manager: Arc<dyn ClusterManager>,
     scheduler: Arc<dyn Scheduler>,
 ) -> Result<mpsc::Sender<WorkloadDefinition>> {
-    //use tracing_subscriber::{fmt, EnvFilter};
-    // Initialize logging
-    //tracing_subscriber::fmt()
-    //    .with_env_filter(tracing_subscriber::EnvFilter::from_default_env().add_directive("info".parse().unwrap()))
-    //    .init();
+    // Initialize state store
+    state_store.initialize().await?;
 
-    let mut orchestrator = Orchestrator::new(runtime, cluster_manager, scheduler);
+    let mut orchestrator = Orchestrator::new(state_store, runtime, cluster_manager, scheduler);
     let workload_tx = orchestrator.get_workload_sender();
 
     tokio::spawn(async move {
