@@ -1,14 +1,31 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
-}
+//! Container Runtime implementations for the orchestrator.
+//!
+//! This crate provides implementations of the `ContainerRuntime` trait:
+//! - `MockRuntime`: In-memory mock for testing (default)
+//! - `YoukiRuntime`: Real container runtime using libcontainer (requires `youki-runtime` feature)
+
+#[cfg(feature = "mock-runtime")]
+pub mod mock;
+
+#[cfg(feature = "youki-runtime")]
+pub mod youki;
+
+// Re-export common types
+pub use container_runtime_interface::{
+    ContainerRuntime, ContainerStatus, CreateContainerOptions, RuntimeError,
+};
+
+#[cfg(feature = "mock-runtime")]
+pub use mock::MockRuntime;
+
+#[cfg(feature = "youki-runtime")]
+pub use youki::YoukiRuntime;
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
+        // Basic sanity test
+        assert!(true);
     }
 }

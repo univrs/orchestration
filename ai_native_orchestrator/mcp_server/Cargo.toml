@@ -1,0 +1,45 @@
+[package]
+name = "mcp_server"
+version = "0.1.0"
+edition = "2021"
+description = "MCP server for AI-native container orchestration"
+
+[dependencies]
+# Internal crates
+orchestrator_shared_types = { path = "../orchestrator_shared_types" }
+state_store_interface = { path = "../state_store_interface" }
+cluster_manager_interface = { path = "../cluster_manager_interface" }
+container_runtime_interface = { path = "../container_runtime_interface" }
+scheduler_interface = { path = "../scheduler_interface" }
+
+# MCP SDK
+rmcp = { version = "0.11", features = ["server"] }
+
+# Async runtime
+tokio = { workspace = true }
+async-trait = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Schema generation
+schemars = "0.8"
+
+# UUID for IDs
+uuid = { workspace = true }
+
+[[bin]]
+name = "orchestrator-mcp"
+path = "src/main.rs"
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util", "macros", "rt-multi-thread"] }
