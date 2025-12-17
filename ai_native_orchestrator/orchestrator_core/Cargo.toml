@@ -3,12 +3,16 @@ name = "orchestrator_core"
 version = "0.1.0"
 edition = "2024"
 
-# This setup is for when main.rs is inside orchestrator_core/src/
-# If orchestrator_core is purely a lib, and main.rs is in a separate bin crate,
-# this [[bin]] section would be in that separate crate's Cargo.toml.
+# Main daemon binary (demo/testing)
 [[bin]]
-name = "orchestrator_daemon" # Or just "orchestrator_core" if you prefer
+name = "orchestrator_daemon"
 path = "src/main.rs"
+
+# Production node binary with cluster support
+[[bin]]
+name = "orchestrator_node"
+path = "src/bin/node.rs"
+required-features = ["cluster"]
 
 [dependencies]
 orchestrator_shared_types = { path = "../orchestrator_shared_types" }
@@ -17,14 +21,31 @@ cluster_manager_interface = { path = "../cluster_manager_interface" }
 scheduler_interface = { path = "../scheduler_interface" }
 state_store_interface = { path = "../state_store_interface" }
 
+# Optional cluster manager with chitchat support
+cluster_manager = { path = "../cluster_manager", optional = true }
+
+# Optional container runtime
+container_runtime = { path = "../container_runtime", optional = true }
+
+# Optional observability
+observability = { path = "../observability", optional = true }
+
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 thiserror = { workspace = true }
-uuid = { workspace = true } # For main.rs
-async-trait = { workspace = true } # For mock impls in main.rs
-anyhow = { workspace = true } # For main.rs
+uuid = { workspace = true }
+async-trait = { workspace = true }
+anyhow = { workspace = true }
 downcast-rs = { workspace = true }
+serde = { workspace = true }
+
+[features]
+default = []
+cluster = ["cluster_manager/chitchat-cluster", "cluster_manager"]
+runtime = ["container_runtime/mock-runtime", "container_runtime"]
+observability = ["dep:observability"]
+full = ["cluster", "runtime", "observability"]
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
