@@ -88,9 +88,21 @@ impl NodeConfig {
             .parse()
             .context("Invalid LISTEN_ADDR")?;
 
-        let public_addr: SocketAddr = std::env::var("PUBLIC_ADDR")
-            .unwrap_or_else(|_| listen_addr.to_string())
+        let public_addr_str = std::env::var("PUBLIC_ADDR")
+            .unwrap_or_else(|_| listen_addr.to_string());
+
+        // Try to parse as socket address first, then resolve as hostname
+        let public_addr: SocketAddr = public_addr_str
             .parse()
+            .or_else(|_| {
+                // Try to resolve as hostname:port
+                use std::net::ToSocketAddrs;
+                public_addr_str
+                    .to_socket_addrs()
+                    .map_err(|e| anyhow::anyhow!("Failed to resolve {}: {}", public_addr_str, e))?
+                    .next()
+                    .ok_or_else(|| anyhow::anyhow!("No addresses found for {}", public_addr_str))
+            })
             .context("Invalid PUBLIC_ADDR")?;
 
         let seed_nodes: Vec<String> = std::env::var("SEED_NODES")
@@ -308,7 +320,7 @@ async fn main() -> Result<()> {
     let cluster_manager_trait: Arc<dyn ClusterManager> = cluster_manager.clone();
 
     // Start the orchestrator service
-    let workload_tx = start_orchestrator_service(
+    let _workload_tx = start_orchestrator_service(
         state_store.clone(),
         runtime.clone(),
         cluster_manager_trait,
