@@ -1,0 +1,22 @@
+[package]
+name = "container_runtime"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+container_runtime_interface = { path = "../container_runtime_interface" }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+thiserror = { workspace = true }
+
+# Optional Youki integration
+youki = { version = "0.3", optional = true }
+libcontainer = { version = "0.3", optional = true }
+
+[features]
+default = ["mock-runtime"]
+mock-runtime = []
+youki-runtime = ["youki", "libcontainer"]
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util", "macros", "rt-multi-thread"] }

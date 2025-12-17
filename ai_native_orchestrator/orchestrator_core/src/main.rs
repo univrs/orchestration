@@ -5,6 +5,7 @@ use tokio;
 use orchestrator_core::start_orchestrator_service;
 use orchestrator_shared_types::{NodeId, WorkloadDefinition, ContainerConfig, NodeResources, PortMapping, Node, Result as OrchestrationResult, OrchestrationError, ContainerId};
 use scheduler_interface::SimpleScheduler;
+use state_store_interface::{StateStore, in_memory::InMemoryStateStore};
 use uuid::Uuid;
 use std::collections::HashMap;
 
@@ -128,11 +129,15 @@ async fn main() -> anyhow::Result<()> {
     let runtime = Arc::new(MockRuntime::default());
     let mock_cluster_manager_concrete = Arc::new(MockClusterManager::new()); // Create concrete Arc<MockClusterManager>
     let cluster_manager_trait_object: Arc<dyn ClusterManager> = mock_cluster_manager_concrete.clone(); // Clone for the trait object
-    
+
     let scheduler = Arc::new(SimpleScheduler);
 
+    // Initialize persistent state store (in-memory for development/testing)
+    let state_store: Arc<dyn StateStore> = Arc::new(InMemoryStateStore::new());
+
     let workload_tx = start_orchestrator_service(
-        runtime.clone(), 
+        state_store,
+        runtime.clone(),
         cluster_manager_trait_object, // Pass the Arc<dyn ClusterManager>
         scheduler.clone()
     ).await?;

@@ -3,7 +3,7 @@ use tokio::sync::mpsc;
 use uuid;
 
 use orchestrator_shared_types::{
-    Node, NodeId, Result, WorkloadDefinition, WorkloadId, WorkloadInstance,
+    Node, Result, WorkloadDefinition, WorkloadInstance,
     WorkloadInstanceStatus,
 };
 use container_runtime_interface::ContainerRuntime;

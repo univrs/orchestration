@@ -17,6 +17,10 @@ etcd-client = { version = "0.13", optional = true }
 # Optional: in-memory backend with persistence snapshots
 bincode = { version = "1.3", optional = true }
 
+[dev-dependencies]
+uuid = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+
 [features]
 default = ["in-memory"]
 in-memory = ["bincode"]

@@ -18,10 +18,15 @@ scheduler_interface = { path = "../scheduler_interface" }
 state_store_interface = { path = "../state_store_interface" }
 
 tokio = { workspace = true }
-tracing = { workspace = true } 
+tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 thiserror = { workspace = true }
 uuid = { workspace = true } # For main.rs
 async-trait = { workspace = true } # For mock impls in main.rs
 anyhow = { workspace = true } # For main.rs
-downcast-rs = { workspace = true } 
+downcast-rs = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
+uuid = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter"] } 
