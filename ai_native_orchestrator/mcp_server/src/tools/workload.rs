@@ -114,7 +114,7 @@ pub struct DeleteWorkloadOutput {
 }
 
 /// Input for listing workloads
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 pub struct ListWorkloadsInput {
     /// Optional filter by name pattern
     #[serde(default)]

@@ -68,6 +68,7 @@ impl Default for ChitchatClusterConfig {
 }
 
 /// Gossip-based cluster manager using chitchat.
+#[derive(Clone)]
 pub struct ChitchatClusterManager {
     /// Configuration for this cluster manager.
     config: ChitchatClusterConfig,
@@ -75,8 +76,8 @@ pub struct ChitchatClusterManager {
     chitchat_handle: Arc<RwLock<Option<ChitchatHandle>>>,
     /// Local cache of nodes for quick lookups.
     nodes_cache: Arc<RwLock<HashMap<NodeId, Node>>>,
-    /// Event broadcaster.
-    event_tx: watch::Sender<Option<ClusterEvent>>,
+    /// Event broadcaster (wrapped in Arc for Clone).
+    event_tx: Arc<watch::Sender<Option<ClusterEvent>>>,
     /// Event receiver template.
     event_rx: watch::Receiver<Option<ClusterEvent>>,
     /// Whether the cluster manager is initialized.
@@ -105,7 +106,7 @@ impl ChitchatClusterManager {
             config,
             chitchat_handle: Arc::new(RwLock::new(None)),
             nodes_cache: Arc::new(RwLock::new(HashMap::new())),
-            event_tx,
+            event_tx: Arc::new(event_tx),
             event_rx,
             initialized: Arc::new(RwLock::new(false)),
             self_node: Arc::new(RwLock::new(None)),
@@ -262,7 +263,7 @@ impl ChitchatClusterManager {
     fn start_membership_monitor(
         chitchat_arc: Arc<Mutex<chitchat::Chitchat>>,
         nodes_cache: Arc<RwLock<HashMap<NodeId, Node>>>,
-        event_tx: watch::Sender<Option<ClusterEvent>>,
+        event_tx: Arc<watch::Sender<Option<ClusterEvent>>>,
     ) {
         tokio::spawn(async move {
             // Get the watcher from the inner Chitchat

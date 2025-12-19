@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use orchestrator_shared_types::Node;
 
 /// Input for listing nodes
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 pub struct ListNodesInput {
     /// Optional filter by status
     #[serde(default)]

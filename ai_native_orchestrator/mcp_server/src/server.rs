@@ -10,7 +10,9 @@ use rmcp::model::*;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::RwLock;
+use tracing::{debug, error, info, warn};
 
 use state_store_interface::StateStore;
 use cluster_manager_interface::ClusterManager;
@@ -18,6 +20,7 @@ use scheduler_interface::Scheduler;
 use orchestrator_shared_types::{NodeId, WorkloadId};
 
 use crate::tools::*;
+use crate::resources::{self, ResourcePath};
 
 /// MCP Server for the AI-native container orchestrator.
 ///
@@ -52,6 +55,27 @@ where
             state_store: Arc::new(RwLock::new(state_store)),
             cluster_manager: Arc::new(RwLock::new(cluster_manager)),
             scheduler: Arc::new(RwLock::new(scheduler)),
+        }
+    }
+}
+
+impl<S, C, Sch> OrchestratorMcpServer<S, C, Sch>
+where
+    S: StateStore + Send + Sync + 'static,
+    C: ClusterManager + Send + Sync + 'static,
+    Sch: Scheduler + Send + Sync + 'static,
+{
+    /// Create a new MCP server with pre-wrapped Arc components.
+    /// Use this when integrating with existing Arc-wrapped orchestrator components.
+    pub fn with_shared(
+        state_store: Arc<RwLock<S>>,
+        cluster_manager: Arc<RwLock<C>>,
+        scheduler: Arc<RwLock<Sch>>,
+    ) -> Self {
+        Self {
+            state_store,
+            cluster_manager,
+            scheduler,
         }
     }
 
@@ -352,6 +376,548 @@ impl ToolDefinitions {
                 },
             ],
         }
+    }
+}
+
+// ============================================================================
+// JSON-RPC Types
+// ============================================================================
+
+/// JSON-RPC 2.0 Request
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JsonRpcRequest {
+    /// JSON-RPC version (always "2.0")
+    pub jsonrpc: String,
+    /// Request ID
+    pub id: Option<Value>,
+    /// Method name
+    pub method: String,
+    /// Parameters (optional)
+    #[serde(default)]
+    pub params: Value,
+}
+
+/// JSON-RPC 2.0 Response
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JsonRpcResponse {
+    /// JSON-RPC version (always "2.0")
+    pub jsonrpc: String,
+    /// Request ID (null for notifications)
+    pub id: Option<Value>,
+    /// Result (on success)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub result: Option<Value>,
+    /// Error (on failure)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<JsonRpcError>,
+}
+
+/// JSON-RPC 2.0 Error
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JsonRpcError {
+    /// Error code
+    pub code: i32,
+    /// Error message
+    pub message: String,
+    /// Additional data
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub data: Option<Value>,
+}
+
+impl JsonRpcResponse {
+    /// Create a success response.
+    pub fn success(id: Option<Value>, result: Value) -> Self {
+        Self {
+            jsonrpc: "2.0".to_string(),
+            id,
+            result: Some(result),
+            error: None,
+        }
+    }
+
+    /// Create an error response.
+    pub fn error(id: Option<Value>, code: i32, message: impl Into<String>) -> Self {
+        Self {
+            jsonrpc: "2.0".to_string(),
+            id,
+            result: None,
+            error: Some(JsonRpcError {
+                code,
+                message: message.into(),
+                data: None,
+            }),
+        }
+    }
+
+    /// Create an error response with data.
+    pub fn error_with_data(id: Option<Value>, code: i32, message: impl Into<String>, data: Value) -> Self {
+        Self {
+            jsonrpc: "2.0".to_string(),
+            id,
+            result: None,
+            error: Some(JsonRpcError {
+                code,
+                message: message.into(),
+                data: Some(data),
+            }),
+        }
+    }
+}
+
+// Standard JSON-RPC error codes
+pub const PARSE_ERROR: i32 = -32700;
+pub const INVALID_REQUEST: i32 = -32600;
+pub const METHOD_NOT_FOUND: i32 = -32601;
+pub const INVALID_PARAMS: i32 = -32602;
+pub const INTERNAL_ERROR: i32 = -32603;
+
+// ============================================================================
+// MCP Protocol Implementation
+// ============================================================================
+
+impl<S, C, Sch> OrchestratorMcpServer<S, C, Sch>
+where
+    S: StateStore + Send + Sync + Clone + 'static,
+    C: ClusterManager + Send + Sync + Clone + 'static,
+    Sch: Scheduler + Send + Sync + Clone + 'static,
+{
+    /// Handle an incoming JSON-RPC request.
+    pub async fn handle_request(&self, request: JsonRpcRequest) -> JsonRpcResponse {
+        debug!(method = %request.method, "Handling MCP request");
+
+        match request.method.as_str() {
+            // MCP Protocol Methods
+            "initialize" => self.handle_initialize(request.id, request.params).await,
+            "initialized" => self.handle_initialized(request.id).await,
+            "ping" => self.handle_ping(request.id).await,
+
+            // Tool Methods
+            "tools/list" => self.handle_tools_list(request.id).await,
+            "tools/call" => self.handle_tools_call(request.id, request.params).await,
+
+            // Resource Methods
+            "resources/list" => self.handle_resources_list(request.id).await,
+            "resources/read" => self.handle_resources_read(request.id, request.params).await,
+
+            // Unknown method
+            _ => {
+                warn!(method = %request.method, "Unknown method");
+                JsonRpcResponse::error(
+                    request.id,
+                    METHOD_NOT_FOUND,
+                    format!("Method not found: {}", request.method),
+                )
+            }
+        }
+    }
+
+    /// Handle initialize request.
+    async fn handle_initialize(&self, id: Option<Value>, params: Value) -> JsonRpcResponse {
+        #[derive(Debug, Deserialize)]
+        struct InitializeParams {
+            #[serde(default)]
+            protocol_version: Option<String>,
+            #[serde(default)]
+            capabilities: Option<Value>,
+            #[serde(default)]
+            client_info: Option<Value>,
+        }
+
+        let _params: InitializeParams = match serde_json::from_value(params) {
+            Ok(p) => p,
+            Err(e) => {
+                return JsonRpcResponse::error(id, INVALID_PARAMS, format!("Invalid params: {}", e));
+            }
+        };
+
+        let server_info = Self::server_info();
+        let result = serde_json::json!({
+            "protocolVersion": "2024-11-05",
+            "capabilities": {
+                "tools": {
+                    "listChanged": false
+                },
+                "resources": {
+                    "subscribe": false,
+                    "listChanged": false
+                }
+            },
+            "serverInfo": {
+                "name": server_info.name,
+                "version": server_info.version
+            }
+        });
+
+        info!("MCP server initialized");
+        JsonRpcResponse::success(id, result)
+    }
+
+    /// Handle initialized notification.
+    async fn handle_initialized(&self, id: Option<Value>) -> JsonRpcResponse {
+        debug!("Client sent initialized notification");
+        JsonRpcResponse::success(id, serde_json::json!({}))
+    }
+
+    /// Handle ping request.
+    async fn handle_ping(&self, id: Option<Value>) -> JsonRpcResponse {
+        JsonRpcResponse::success(id, serde_json::json!({}))
+    }
+
+    /// Handle tools/list request.
+    async fn handle_tools_list(&self, id: Option<Value>) -> JsonRpcResponse {
+        let tool_defs = ToolDefinitions::all();
+        let tools: Vec<Value> = tool_defs
+            .tools
+            .iter()
+            .map(|t| {
+                serde_json::json!({
+                    "name": t.name,
+                    "description": t.description,
+                    "inputSchema": t.input_schema
+                })
+            })
+            .collect();
+
+        JsonRpcResponse::success(id, serde_json::json!({ "tools": tools }))
+    }
+
+    /// Handle tools/call request.
+    async fn handle_tools_call(&self, id: Option<Value>, params: Value) -> JsonRpcResponse {
+        #[derive(Debug, Deserialize)]
+        struct ToolCallParams {
+            name: String,
+            #[serde(default)]
+            arguments: Value,
+        }
+
+        let params: ToolCallParams = match serde_json::from_value(params) {
+            Ok(p) => p,
+            Err(e) => {
+                return JsonRpcResponse::error(id, INVALID_PARAMS, format!("Invalid params: {}", e));
+            }
+        };
+
+        debug!(tool = %params.name, "Calling tool");
+
+        let result = match params.name.as_str() {
+            "list_workloads" => {
+                let input: ListWorkloadsInput = serde_json::from_value(params.arguments)
+                    .unwrap_or_default();
+                match self.handle_list_workloads(input).await {
+                    Ok(output) => serde_json::to_value(output).unwrap_or_default(),
+                    Err(e) => return JsonRpcResponse::error(id, INTERNAL_ERROR, e),
+                }
+            }
+            "create_workload" => {
+                let input: CreateWorkloadInput = match serde_json::from_value(params.arguments) {
+                    Ok(i) => i,
+                    Err(e) => return JsonRpcResponse::error(id, INVALID_PARAMS, e.to_string()),
+                };
+                match self.handle_create_workload(input).await {
+                    Ok(output) => serde_json::to_value(output).unwrap_or_default(),
+                    Err(e) => return JsonRpcResponse::error(id, INTERNAL_ERROR, e),
+                }
+            }
+            "get_workload" => {
+                let input: GetWorkloadInput = match serde_json::from_value(params.arguments) {
+                    Ok(i) => i,
+                    Err(e) => return JsonRpcResponse::error(id, INVALID_PARAMS, e.to_string()),
+                };
+                match self.handle_get_workload(input).await {
+                    Ok(output) => serde_json::to_value(output).unwrap_or_default(),
+                    Err(e) => return JsonRpcResponse::error(id, INTERNAL_ERROR, e),
+                }
+            }
+            "scale_workload" => {
+                let input: ScaleWorkloadInput = match serde_json::from_value(params.arguments) {
+                    Ok(i) => i,
+                    Err(e) => return JsonRpcResponse::error(id, INVALID_PARAMS, e.to_string()),
+                };
+                match self.handle_scale_workload(input).await {
+                    Ok(output) => serde_json::to_value(output).unwrap_or_default(),
+                    Err(e) => return JsonRpcResponse::error(id, INTERNAL_ERROR, e),
+                }
+            }
+            "delete_workload" => {
+                let input: DeleteWorkloadInput = match serde_json::from_value(params.arguments) {
+                    Ok(i) => i,
+                    Err(e) => return JsonRpcResponse::error(id, INVALID_PARAMS, e.to_string()),
+                };
+                match self.handle_delete_workload(input).await {
+                    Ok(output) => serde_json::to_value(output).unwrap_or_default(),
+                    Err(e) => return JsonRpcResponse::error(id, INTERNAL_ERROR, e),
+                }
+            }
+            "list_nodes" => {
+                let input: ListNodesInput = serde_json::from_value(params.arguments)
+                    .unwrap_or_default();
+                match self.handle_list_nodes(input).await {
+                    Ok(output) => serde_json::to_value(output).unwrap_or_default(),
+                    Err(e) => return JsonRpcResponse::error(id, INTERNAL_ERROR, e),
+                }
+            }
+            "get_node" => {
+                let input: GetNodeInput = match serde_json::from_value(params.arguments) {
+                    Ok(i) => i,
+                    Err(e) => return JsonRpcResponse::error(id, INVALID_PARAMS, e.to_string()),
+                };
+                match self.handle_get_node(input).await {
+                    Ok(output) => serde_json::to_value(output).unwrap_or_default(),
+                    Err(e) => return JsonRpcResponse::error(id, INTERNAL_ERROR, e),
+                }
+            }
+            "get_cluster_status" => {
+                let input: GetClusterStatusInput = serde_json::from_value(params.arguments)
+                    .unwrap_or_default();
+                match self.handle_get_cluster_status(input).await {
+                    Ok(output) => serde_json::to_value(output).unwrap_or_default(),
+                    Err(e) => return JsonRpcResponse::error(id, INTERNAL_ERROR, e),
+                }
+            }
+            _ => {
+                return JsonRpcResponse::error(
+                    id,
+                    METHOD_NOT_FOUND,
+                    format!("Unknown tool: {}", params.name),
+                );
+            }
+        };
+
+        // Format result as MCP tool result
+        let content = serde_json::json!([{
+            "type": "text",
+            "text": serde_json::to_string_pretty(&result).unwrap_or_default()
+        }]);
+
+        JsonRpcResponse::success(id, serde_json::json!({ "content": content }))
+    }
+
+    /// Handle resources/list request.
+    async fn handle_resources_list(&self, id: Option<Value>) -> JsonRpcResponse {
+        let resources = resources::list_available_resources();
+        let resource_list: Vec<Value> = resources
+            .iter()
+            .map(|r| {
+                serde_json::json!({
+                    "uri": r.uri,
+                    "name": r.name,
+                    "description": r.description,
+                    "mimeType": r.mime_type
+                })
+            })
+            .collect();
+
+        JsonRpcResponse::success(id, serde_json::json!({ "resources": resource_list }))
+    }
+
+    /// Handle resources/read request.
+    async fn handle_resources_read(&self, id: Option<Value>, params: Value) -> JsonRpcResponse {
+        #[derive(Debug, Deserialize)]
+        struct ReadParams {
+            uri: String,
+        }
+
+        let params: ReadParams = match serde_json::from_value(params) {
+            Ok(p) => p,
+            Err(e) => {
+                return JsonRpcResponse::error(id, INVALID_PARAMS, format!("Invalid params: {}", e));
+            }
+        };
+
+        let resource_path = match resources::parse_resource_uri(&params.uri) {
+            Some(p) => p,
+            None => {
+                return JsonRpcResponse::error(
+                    id,
+                    INVALID_PARAMS,
+                    format!("Invalid resource URI: {}", params.uri),
+                );
+            }
+        };
+
+        let content = match resource_path {
+            ResourcePath::NodeList => {
+                let cluster = self.cluster_manager.read().await;
+                match cluster.list_nodes().await {
+                    Ok(nodes) => {
+                        let node_list: Vec<Value> = nodes
+                            .iter()
+                            .map(|n| {
+                                serde_json::json!({
+                                    "id": n.id.to_string(),
+                                    "address": n.address,
+                                    "status": format!("{:?}", n.status),
+                                    "cpu_capacity": n.resources_capacity.cpu_cores,
+                                    "memory_capacity_mb": n.resources_capacity.memory_mb
+                                })
+                            })
+                            .collect();
+                        serde_json::to_string_pretty(&node_list).unwrap_or_default()
+                    }
+                    Err(e) => return JsonRpcResponse::error(id, INTERNAL_ERROR, e.to_string()),
+                }
+            }
+            ResourcePath::Node(node_id) => {
+                let parsed_id: NodeId = match node_id.parse() {
+                    Ok(id) => id,
+                    Err(_) => return JsonRpcResponse::error(id, INVALID_PARAMS, "Invalid node ID"),
+                };
+                let cluster = self.cluster_manager.read().await;
+                match cluster.get_node(&parsed_id).await {
+                    Ok(Some(node)) => {
+                        let node_data = serde_json::json!({
+                            "id": node.id.to_string(),
+                            "address": node.address,
+                            "status": format!("{:?}", node.status),
+                            "labels": node.labels,
+                            "resources_capacity": {
+                                "cpu_cores": node.resources_capacity.cpu_cores,
+                                "memory_mb": node.resources_capacity.memory_mb,
+                                "disk_mb": node.resources_capacity.disk_mb
+                            },
+                            "resources_allocatable": {
+                                "cpu_cores": node.resources_allocatable.cpu_cores,
+                                "memory_mb": node.resources_allocatable.memory_mb,
+                                "disk_mb": node.resources_allocatable.disk_mb
+                            }
+                        });
+                        serde_json::to_string_pretty(&node_data).unwrap_or_default()
+                    }
+                    Ok(None) => return JsonRpcResponse::error(id, INVALID_PARAMS, "Node not found"),
+                    Err(e) => return JsonRpcResponse::error(id, INTERNAL_ERROR, e.to_string()),
+                }
+            }
+            ResourcePath::WorkloadList => {
+                let store = self.state_store.read().await;
+                match store.list_workloads().await {
+                    Ok(workloads) => {
+                        let workload_list: Vec<Value> = workloads
+                            .iter()
+                            .map(|w| {
+                                serde_json::json!({
+                                    "id": w.id.to_string(),
+                                    "name": w.name,
+                                    "replicas": w.replicas,
+                                    "containers": w.containers.len()
+                                })
+                            })
+                            .collect();
+                        serde_json::to_string_pretty(&workload_list).unwrap_or_default()
+                    }
+                    Err(e) => return JsonRpcResponse::error(id, INTERNAL_ERROR, e.to_string()),
+                }
+            }
+            ResourcePath::Workload(workload_id) => {
+                let parsed_id: WorkloadId = match workload_id.parse() {
+                    Ok(id) => id,
+                    Err(_) => return JsonRpcResponse::error(id, INVALID_PARAMS, "Invalid workload ID"),
+                };
+                let store = self.state_store.read().await;
+                match store.get_workload(&parsed_id).await {
+                    Ok(Some(workload)) => {
+                        let workload_data = serde_json::json!({
+                            "id": workload.id.to_string(),
+                            "name": workload.name,
+                            "replicas": workload.replicas,
+                            "labels": workload.labels,
+                            "containers": workload.containers.iter().map(|c| {
+                                serde_json::json!({
+                                    "name": c.name,
+                                    "image": c.image,
+                                    "ports": c.ports
+                                })
+                            }).collect::<Vec<_>>()
+                        });
+                        serde_json::to_string_pretty(&workload_data).unwrap_or_default()
+                    }
+                    Ok(None) => return JsonRpcResponse::error(id, INVALID_PARAMS, "Workload not found"),
+                    Err(e) => return JsonRpcResponse::error(id, INTERNAL_ERROR, e.to_string()),
+                }
+            }
+            ResourcePath::ClusterStatus => {
+                match self.handle_get_cluster_status(GetClusterStatusInput::default()).await {
+                    Ok(status) => serde_json::to_string_pretty(&status).unwrap_or_default(),
+                    Err(e) => return JsonRpcResponse::error(id, INTERNAL_ERROR, e),
+                }
+            }
+            ResourcePath::ClusterMetrics => {
+                match self.handle_get_cluster_status(GetClusterStatusInput::default()).await {
+                    Ok(status) => {
+                        let metrics = serde_json::json!({
+                            "total_cpu_capacity": status.total_cpu_capacity,
+                            "total_memory_capacity_mb": status.total_memory_capacity_mb,
+                            "used_cpu": status.used_cpu,
+                            "used_memory_mb": status.used_memory_mb,
+                            "cpu_utilization_percent": if status.total_cpu_capacity > 0.0 {
+                                status.used_cpu / status.total_cpu_capacity * 100.0
+                            } else { 0.0 },
+                            "memory_utilization_percent": if status.total_memory_capacity_mb > 0 {
+                                status.used_memory_mb as f64 / status.total_memory_capacity_mb as f64 * 100.0
+                            } else { 0.0 }
+                        });
+                        serde_json::to_string_pretty(&metrics).unwrap_or_default()
+                    }
+                    Err(e) => return JsonRpcResponse::error(id, INTERNAL_ERROR, e),
+                }
+            }
+        };
+
+        let result = serde_json::json!({
+            "contents": [{
+                "uri": params.uri,
+                "mimeType": "application/json",
+                "text": content
+            }]
+        });
+
+        JsonRpcResponse::success(id, result)
+    }
+
+    /// Run the MCP server over stdio.
+    pub async fn serve_stdio(self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let stdin = tokio::io::stdin();
+        let mut stdout = tokio::io::stdout();
+        let reader = BufReader::new(stdin);
+        let mut lines = reader.lines();
+
+        info!("MCP server listening on stdio");
+
+        while let Some(line) = lines.next_line().await? {
+            if line.is_empty() {
+                continue;
+            }
+
+            debug!(request = %line, "Received request");
+
+            let request: JsonRpcRequest = match serde_json::from_str(&line) {
+                Ok(r) => r,
+                Err(e) => {
+                    error!(error = %e, "Failed to parse request");
+                    let response = JsonRpcResponse::error(
+                        None,
+                        PARSE_ERROR,
+                        format!("Parse error: {}", e),
+                    );
+                    let response_json = serde_json::to_string(&response)?;
+                    stdout.write_all(response_json.as_bytes()).await?;
+                    stdout.write_all(b"\n").await?;
+                    stdout.flush().await?;
+                    continue;
+                }
+            };
+
+            let response = self.handle_request(request).await;
+            let response_json = serde_json::to_string(&response)?;
+
+            debug!(response = %response_json, "Sending response");
+
+            stdout.write_all(response_json.as_bytes()).await?;
+            stdout.write_all(b"\n").await?;
+            stdout.flush().await?;
+        }
+
+        info!("MCP server shutdown");
+        Ok(())
     }
 }
 

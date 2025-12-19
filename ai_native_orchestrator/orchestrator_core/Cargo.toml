@@ -33,6 +33,9 @@ observability = { path = "../observability", optional = true }
 # Optional REST API
 user_config = { path = "../user_config", optional = true }
 axum = { version = "0.7", features = ["ws"], optional = true }
+
+# Optional MCP server
+mcp_server = { path = "../mcp_server", optional = true }
 tower = { version = "0.4", optional = true }
 tower-http = { version = "0.5", features = ["trace", "cors"], optional = true }
 sha2 = { version = "0.10", optional = true }
@@ -63,9 +66,10 @@ runtime = ["container_runtime/mock-runtime", "container_runtime"]
 youki-runtime = ["container_runtime/youki-cli", "container_runtime"]
 observability = ["dep:observability"]
 rest-api = ["user_config", "axum", "tower", "tower-http", "sha2", "base64", "chrono", "http", "http-body-util", "bytes", "ed25519-dalek", "hex", "serde_json"]
-full = ["cluster", "runtime", "observability", "rest-api"]
+mcp = ["mcp_server"]
+full = ["cluster", "runtime", "observability", "rest-api", "mcp"]
 # Full with real container runtime
-full-youki = ["cluster", "youki-runtime", "observability", "rest-api"]
+full-youki = ["cluster", "youki-runtime", "observability", "rest-api", "mcp"]
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }

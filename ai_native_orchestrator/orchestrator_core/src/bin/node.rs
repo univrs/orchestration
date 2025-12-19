@@ -22,6 +22,7 @@
 //! - `YOUKI_BINARY`: Path to youki binary (default: "youki" - searches PATH)
 //! - `BUNDLE_ROOT`: Root directory for OCI bundles (default: "/var/lib/orchestrator/bundles")
 //! - `STATE_ROOT`: Root directory for runtime state (default: "/run/orchestrator")
+//! - `MCP_STDIO`: Enable MCP server over stdio for Claude Code integration (default: false)
 //!
 //! # API Endpoints (port 9090 by default)
 //!
@@ -63,9 +64,12 @@ use orchestrator_shared_types::{
     ContainerId, ContainerConfig, Node, NodeId, NodeResources, NodeStatus,
     OrchestrationError, Result as OrchResult,
 };
-use scheduler_interface::SimpleScheduler;
+use scheduler_interface::{Scheduler, SimpleScheduler};
 use state_store_interface::in_memory::InMemoryStateStore;
 use state_store_interface::StateStore;
+
+#[cfg(feature = "mcp")]
+use mcp_server::OrchestratorMcpServer;
 
 #[cfg(feature = "observability")]
 use observability::{
@@ -100,6 +104,9 @@ struct NodeConfig {
     bundle_root: String,
     /// Root directory for runtime state
     state_root: String,
+    /// Enable MCP stdio server for Claude Code integration
+    #[cfg(feature = "mcp")]
+    mcp_stdio: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -219,6 +226,11 @@ impl NodeConfig {
         let state_root = std::env::var("STATE_ROOT")
             .unwrap_or_else(|_| "/run/orchestrator".to_string());
 
+        #[cfg(feature = "mcp")]
+        let mcp_stdio = std::env::var("MCP_STDIO")
+            .map(|v| v == "true" || v == "1")
+            .unwrap_or(false);
+
         Ok(NodeConfig {
             node_id,
             role,
@@ -237,6 +249,8 @@ impl NodeConfig {
             youki_binary,
             bundle_root,
             state_root,
+            #[cfg(feature = "mcp")]
+            mcp_stdio,
         })
     }
 }
@@ -426,11 +440,39 @@ async fn main() -> Result<()> {
             }
         }
     };
-    let scheduler = Arc::new(SimpleScheduler);
-    let state_store: Arc<dyn StateStore> = Arc::new(InMemoryStateStore::new());
+
+    // Create concrete stores first (needed for MCP server if enabled)
+    let in_memory_store = InMemoryStateStore::new();
+    let simple_scheduler = SimpleScheduler;
+
+    // Wrap in Arc for orchestrator service
+    let scheduler = Arc::new(simple_scheduler.clone());
+    let state_store: Arc<dyn StateStore> = Arc::new(in_memory_store.clone());
 
     // Convert to trait object for orchestrator
     let cluster_manager_trait: Arc<dyn ClusterManager> = cluster_manager.clone();
+
+    // Start MCP server over stdio if enabled
+    #[cfg(feature = "mcp")]
+    if config.mcp_stdio {
+        // Create MCP server with cloned concrete types
+        let mcp_store = in_memory_store.clone();
+        let mcp_cluster = (*cluster_manager).clone();  // Clone the ChitchatClusterManager
+        let mcp_scheduler = simple_scheduler;
+
+        tokio::spawn(async move {
+            let mcp_server = OrchestratorMcpServer::new(
+                mcp_store,
+                mcp_cluster,
+                mcp_scheduler,
+            );
+
+            info!("Starting MCP server over stdio for Claude Code integration");
+            if let Err(e) = mcp_server.serve_stdio().await {
+                error!("MCP server error: {}", e);
+            }
+        });
+    }
 
     // Start the orchestrator service
     let _workload_tx = start_orchestrator_service(

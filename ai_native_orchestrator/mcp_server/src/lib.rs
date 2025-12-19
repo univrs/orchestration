@@ -17,6 +17,8 @@ pub mod resources;
 pub mod server;
 
 pub use server::OrchestratorMcpServer;
+pub use server::{JsonRpcRequest, JsonRpcResponse, JsonRpcError};
+pub use server::{PARSE_ERROR, INVALID_REQUEST, METHOD_NOT_FOUND, INVALID_PARAMS, INTERNAL_ERROR};
 
 // Re-export common types
 pub use rmcp;

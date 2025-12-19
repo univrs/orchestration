@@ -13,6 +13,7 @@ use crate::StateStore;
 /// This implementation uses RwLock-protected HashMaps for thread-safe
 /// in-memory storage. Suitable for testing, development, and single-node
 /// deployments where persistence across restarts is not required.
+#[derive(Clone)]
 pub struct InMemoryStateStore {
     nodes: Arc<RwLock<HashMap<NodeId, Node>>>,
     workloads: Arc<RwLock<HashMap<WorkloadId, WorkloadDefinition>>>,

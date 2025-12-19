@@ -1,0 +1,47 @@
+cat > docker-compose.youki.yml << 'EOF'
+version: '3.8'
+services:
+  bootstrap:
+    image: orchestrator:youki
+    container_name: orchestrator-bootstrap
+    hostname: bootstrap
+    privileged: true  # Required for youki container operations
+    environment:
+      - NODE_ROLE=bootstrap
+      - API_PORT=9090
+      - RUST_LOG=info
+      - AUTH_DISABLED=true
+      - RUNTIME_TYPE=youki
+    ports:
+      - "9090:9090"
+      - "7280:7280"
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    networks:
+      - orchestrator-net
+
+  worker1:
+    image: orchestrator:youki
+    container_name: orchestrator-worker1
+    hostname: worker1
+    privileged: true
+    environment:
+      - NODE_ROLE=worker
+      - API_PORT=9091
+      - BOOTSTRAP_ADDR=bootstrap:7280
+      - RUST_LOG=info
+      - AUTH_DISABLED=true
+      - RUNTIME_TYPE=youki
+    ports:
+      - "9091:9091"
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    depends_on:
+      - bootstrap
+    networks:
+      - orchestrator-net
+
+networks:
+  orchestrator-net:
+    driver: bridge
+EOF

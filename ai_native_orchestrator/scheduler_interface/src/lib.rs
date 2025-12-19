@@ -54,6 +54,7 @@ impl From<SchedulerError> for OrchestrationError {
 }
 
 // A very simple scheduler implementation for demonstration
+#[derive(Clone, Copy)]
 pub struct SimpleScheduler;
 
 #[async_trait]
