@@ -1,0 +1,432 @@
+# API Domain Ontology
+# Retrospective analysis of orchestrator_core API module
+# Generated from: orchestrator_core/src/api/
+
+@domain api
+@version 1.0.0
+
+# =============================================================================
+# GENES - Core data structures for API layer
+# =============================================================================
+
+gene ApiRequest {
+  description: "Incoming HTTP request structure"
+  properties {
+    method: HttpMethod            # GET, POST, PUT, DELETE, PATCH
+    path: String                  # Request path
+    headers: HeaderMap            # HTTP headers
+    query: HashMap<String, String>  # Query parameters
+    body: Option<Bytes>           # Request body
+    extensions: Extensions        # Request extensions (auth, tracing)
+  }
+}
+
+gene ApiResponse {
+  description: "Outgoing HTTP response structure"
+  properties {
+    status: StatusCode            # HTTP status code
+    headers: HeaderMap            # Response headers
+    body: Option<Json<T>>         # JSON response body
+  }
+}
+
+gene ApiError {
+  description: "Structured API error response"
+  properties {
+    code: String                  # Machine-readable error code
+    message: String               # Human-readable message
+    details: Option<Value>        # Additional error context
+    request_id: Option<String>    # Correlation ID
+  }
+
+  variants {
+    NotFound(String)              # Resource not found
+    BadRequest(String)            # Invalid request
+    Unauthorized                  # Authentication required
+    Forbidden                     # Insufficient permissions
+    Conflict(String)              # Resource conflict
+    InternalError(String)         # Server error
+    ServiceUnavailable            # Temporary unavailability
+  }
+}
+
+gene AuthContext {
+  description: "Authenticated request context"
+  properties {
+    principal: Principal          # Authenticated identity
+    permissions: Vec<Permission>  # Granted permissions
+    token_id: Option<String>      # Auth token identifier
+    issued_at: DateTime
+    expires_at: Option<DateTime>
+  }
+}
+
+gene Principal {
+  description: "Authenticated identity"
+  variants {
+    User { id: UserId, name: String }
+    ServiceAccount { id: ServiceAccountId, name: String }
+    Node { id: NodeId }
+    Anonymous
+  }
+}
+
+gene Permission {
+  description: "Authorization permission"
+  properties {
+    resource: ResourceType        # What resource
+    action: Action                # What action
+    scope: Option<String>         # Optional scope (namespace, etc.)
+  }
+}
+
+gene ResourceType {
+  description: "API resource types"
+  variants {
+    Nodes
+    Workloads
+    Instances
+    Namespaces
+    Events
+    Metrics
+    Logs
+    Cluster
+  }
+}
+
+gene Action {
+  description: "CRUD and special actions"
+  variants {
+    Create
+    Read
+    Update
+    Delete
+    List
+    Watch
+    Scale
+    Execute
+  }
+}
+
+gene ApiVersion {
+  description: "API versioning"
+  properties {
+    major: u32
+    minor: u32
+    prefix: String                # e.g., "/api/v1"
+  }
+}
+
+gene WebSocketMessage {
+  description: "WebSocket protocol message"
+  variants {
+    Subscribe { topics: Vec<String> }
+    Unsubscribe { topics: Vec<String> }
+    Event { topic: String, data: Value }
+    Ping
+    Pong
+    Error { code: String, message: String }
+  }
+}
+
+# =============================================================================
+# TRAITS - API behavioral interfaces
+# =============================================================================
+
+trait HttpHandler {
+  description: "HTTP request handler"
+
+  async fn handle(req: ApiRequest) -> Result<ApiResponse, ApiError>
+}
+
+trait RestController<T> {
+  description: "RESTful resource controller"
+
+  async fn list(query: ListQuery) -> Result<ListResponse<T>>
+  async fn get(id: Id) -> Result<T>
+  async fn create(resource: T) -> Result<T>
+  async fn update(id: Id, resource: T) -> Result<T>
+  async fn delete(id: Id) -> Result<()>
+}
+
+trait AuthenticationMiddleware {
+  description: "Request authentication"
+
+  async fn authenticate(req: &ApiRequest) -> Result<AuthContext, ApiError>
+  fn verify_signature(payload: &[u8], signature: &str) -> Result<bool>
+  fn parse_token(token: &str) -> Result<Claims>
+}
+
+trait AuthorizationMiddleware {
+  description: "Request authorization"
+
+  async fn authorize(auth: &AuthContext, resource: ResourceType, action: Action) -> Result<(), ApiError>
+  fn check_permission(auth: &AuthContext, permission: &Permission) -> bool
+}
+
+trait WebSocketHandler {
+  description: "WebSocket connection handler"
+
+  async fn on_connect(conn: WebSocketConnection) -> Result<()>
+  async fn on_message(conn: &WebSocketConnection, msg: WebSocketMessage) -> Result<()>
+  async fn on_disconnect(conn: &WebSocketConnection)
+  async fn broadcast(topic: &str, msg: Value)
+}
+
+trait RequestValidator {
+  description: "Request validation"
+
+  fn validate<T: Validate>(input: &T) -> Result<(), ValidationErrors>
+  fn sanitize<T: Sanitize>(input: T) -> T
+}
+
+# =============================================================================
+# CONSTRAINTS - API behavior rules
+# =============================================================================
+
+constraint RestSemantics {
+  description: "RESTful API design constraints"
+  rules {
+    GET must_be idempotent and safe
+    PUT must_be idempotent
+    DELETE must_be idempotent
+    POST may_create_new_resource
+    PATCH for_partial_updates
+
+    successful_create returns 201_Created with Location_header
+    not_found returns 404
+    validation_failure returns 400
+    auth_failure returns 401 or 403
+    server_error returns 500
+  }
+}
+
+constraint AuthenticationRequirements {
+  description: "Authentication constraints"
+  rules {
+    all_mutating_endpoints require authentication
+    read_endpoints may_allow anonymous (configurable)
+    signature must_be Ed25519
+    signature covers (method, path, body_hash, timestamp)
+    timestamp must_be within skew_tolerance
+  }
+}
+
+constraint RateLimiting {
+  description: "Request rate limiting"
+  rules {
+    per_client_limit: configurable
+    per_endpoint_limit: configurable
+    exceeded returns 429_TooManyRequests
+    include Retry-After header
+  }
+}
+
+constraint ResponseFormat {
+  description: "Response formatting constraints"
+  rules {
+    success_responses are JSON
+    errors follow ApiError schema
+    include request_id for tracing
+    timestamps in RFC3339 format
+    ids as UUID strings
+  }
+}
+
+constraint WebSocketProtocol {
+  description: "WebSocket behavior constraints"
+  rules {
+    connection requires authentication
+    ping_interval: 30s
+    pong_timeout: 10s
+    max_message_size: 1MB
+    topic_subscription required before receiving events
+  }
+}
+
+# =============================================================================
+# SYSTEMS - API workflows and compositions
+# =============================================================================
+
+system RequestPipeline {
+  description: "HTTP request processing pipeline"
+  uses [AuthenticationMiddleware, AuthorizationMiddleware, RequestValidator, HttpHandler]
+
+  workflow process_request(req: ApiRequest) {
+    1. Parse and validate request format
+    2. Extract auth credentials
+    3. Authenticate request -> AuthContext
+    4. Log request with correlation ID
+    5. Authorize against required permissions
+    6. Validate request body
+    7. Route to appropriate handler
+    8. Execute handler
+    9. Format response
+    10. Log response
+    11. Return response
+  }
+
+  middleware_chain [
+    TracingMiddleware,
+    RequestIdMiddleware,
+    AuthMiddleware,
+    RateLimitMiddleware,
+    ValidationMiddleware,
+  ]
+}
+
+system WorkloadController {
+  description: "Workload resource API controller"
+  uses [RestController<WorkloadDefinition>, StateStore]
+
+  endpoints {
+    GET    /api/v1/workloads            -> list
+    GET    /api/v1/workloads/:id        -> get
+    POST   /api/v1/workloads            -> create
+    PUT    /api/v1/workloads/:id        -> update
+    DELETE /api/v1/workloads/:id        -> delete
+    POST   /api/v1/workloads/:id/scale  -> scale
+  }
+
+  workflow create_workload(def: WorkloadDefinition) {
+    1. Validate workload definition
+    2. Check resource quotas
+    3. Persist to state store
+    4. Trigger scheduler
+    5. Return created workload
+  }
+
+  workflow scale_workload(id: WorkloadId, replicas: u32) {
+    1. Fetch current workload
+    2. Validate replica count
+    3. Update replicas field
+    4. Persist change
+    5. Trigger reconciliation
+    6. Return updated workload
+  }
+}
+
+system NodeController {
+  description: "Node resource API controller"
+  uses [RestController<Node>, ClusterManager]
+
+  endpoints {
+    GET    /api/v1/nodes                -> list
+    GET    /api/v1/nodes/:id            -> get
+    PUT    /api/v1/nodes/:id            -> update (labels, annotations)
+    POST   /api/v1/nodes/:id/cordon     -> cordon (mark unschedulable)
+    POST   /api/v1/nodes/:id/uncordon   -> uncordon
+    POST   /api/v1/nodes/:id/drain      -> drain (evict workloads)
+  }
+}
+
+system LogStreamingService {
+  description: "Real-time log streaming over WebSocket"
+  uses [WebSocketHandler, ContainerRuntime]
+
+  workflow stream_logs(ws: WebSocketConnection, container_id: ContainerId) {
+    1. Authenticate WebSocket connection
+    2. Validate container access
+    3. Open container log stream
+    4. Multiplex stdout/stderr
+    5. Send log lines as WebSocket messages
+    6. Handle client disconnect
+    7. Cleanup resources
+  }
+
+  message_types {
+    LogLine { timestamp: DateTime, stream: stdout|stderr, message: String }
+    StreamEnd { exit_code: Option<i32> }
+    Error { code: String, message: String }
+  }
+}
+
+system EventStreamingService {
+  description: "Cluster event streaming over WebSocket"
+  uses [WebSocketHandler, ClusterManager]
+
+  workflow stream_events(ws: WebSocketConnection) {
+    1. Authenticate WebSocket connection
+    2. Subscribe to requested topics
+    3. Filter events by topic and permissions
+    4. Send events as WebSocket messages
+    5. Handle subscription changes
+    6. Handle disconnect
+  }
+
+  topics {
+    nodes: ClusterEvent
+    workloads: WorkloadEvent
+    instances: InstanceEvent
+    metrics: MetricsEvent
+  }
+}
+
+# =============================================================================
+# IMPLEMENTATIONS - Concrete API implementations
+# =============================================================================
+
+implementation AxumApiServer of HttpHandler + WebSocketHandler {
+  description: "Axum-based HTTP server implementation"
+
+  dependencies {
+    axum: "0.7"
+    tower: "0.4"
+    tower-http: "0.5"
+    tokio-tungstenite: "0.21"
+  }
+
+  configuration {
+    bind_address: SocketAddr
+    tls: Option<TlsConfig>
+    max_connections: u32
+    request_timeout: Duration
+    body_limit: usize
+  }
+
+  routes {
+    # Health and metadata
+    GET  /health              -> health_check
+    GET  /ready               -> readiness_check
+    GET  /live                -> liveness_check
+    GET  /metrics             -> prometheus_metrics
+
+    # API v1
+    /api/v1/workloads/*       -> WorkloadController
+    /api/v1/nodes/*           -> NodeController
+    /api/v1/cluster/*         -> ClusterController
+
+    # WebSocket
+    WS   /ws/logs/:id         -> LogStreamingService
+    WS   /ws/events           -> EventStreamingService
+  }
+
+  middleware_stack [
+    TraceLayer,
+    CompressionLayer,
+    TimeoutLayer,
+    CorsLayer,
+  ]
+}
+
+implementation Ed25519Authenticator of AuthenticationMiddleware {
+  description: "Ed25519 signature-based authentication"
+
+  header_format {
+    Authorization: "Signature keyId=\"{key_id}\",signature=\"{base64_sig}\""
+    X-Timestamp: "{rfc3339_timestamp}"
+  }
+
+  signature_payload {
+    format: "{method}\n{path}\n{body_sha256}\n{timestamp}"
+  }
+
+  verification {
+    1. Parse Authorization header
+    2. Look up public key by keyId
+    3. Reconstruct signed payload
+    4. Verify Ed25519 signature
+    5. Check timestamp within tolerance (±5min)
+    6. Return authenticated principal
+  }
+}

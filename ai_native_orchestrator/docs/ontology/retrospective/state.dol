@@ -1,0 +1,288 @@
+# State Store Domain Ontology
+# Retrospective analysis of state_store_interface module
+# Generated from: state_store_interface/, state_store/
+
+@domain state
+@version 1.0.0
+
+# =============================================================================
+# GENES - Core data structures for distributed state
+# =============================================================================
+
+gene Node {
+  description: "Cluster node representation"
+  properties {
+    id: NodeId                    # UUID identifier
+    name: String                  # Human-readable name
+    address: SocketAddr           # Network address
+    status: NodeStatus            # Ready, NotReady, Unknown, Down
+    resources_total: ResourceSpec     # Total node resources
+    resources_allocatable: ResourceSpec  # Available for scheduling
+    labels: HashMap<String, String>
+    annotations: HashMap<String, String>
+    last_heartbeat: DateTime
+    created_at: DateTime
+  }
+}
+
+gene NodeStatus {
+  description: "Node health state enumeration"
+  variants {
+    Ready     # Node is healthy and accepting workloads
+    NotReady  # Node exists but cannot accept workloads
+    Unknown   # Node state cannot be determined
+    Down      # Node is unreachable
+  }
+}
+
+gene WorkloadDefinition {
+  description: "Desired state specification for a workload"
+  properties {
+    id: WorkloadId                # UUID identifier
+    name: String                  # Workload name
+    namespace: String             # Logical grouping
+    replicas: u32                 # Desired instance count
+    containers: Vec<ContainerSpec>
+    scheduling: SchedulingSpec
+    labels: HashMap<String, String>
+    annotations: HashMap<String, String>
+    created_at: DateTime
+    updated_at: DateTime
+  }
+}
+
+gene WorkloadInstance {
+  description: "Running instance of a workload"
+  properties {
+    id: InstanceId                # UUID identifier
+    workload_id: WorkloadId       # Parent workload
+    node_id: NodeId               # Assigned node
+    status: WorkloadInstanceStatus
+    container_statuses: Vec<ContainerStatus>
+    ip_address: Option<IpAddr>
+    started_at: Option<DateTime>
+    finished_at: Option<DateTime>
+  }
+}
+
+gene WorkloadInstanceStatus {
+  description: "Instance lifecycle state"
+  variants {
+    Pending     # Waiting for scheduling or resources
+    Running     # All containers are running
+    Succeeded   # All containers exited successfully
+    Failed      # One or more containers failed
+    Unknown     # Status cannot be determined
+    Terminating # Graceful shutdown in progress
+  }
+}
+
+gene ResourceSpec {
+  description: "Resource quantities"
+  properties {
+    cpu_millicores: u64           # CPU in millicores (1000 = 1 core)
+    memory_bytes: u64             # Memory in bytes
+    storage_bytes: Option<u64>    # Ephemeral storage
+    gpu_count: Option<u32>        # GPU devices
+  }
+}
+
+gene StateSnapshot {
+  description: "Point-in-time cluster state"
+  properties {
+    timestamp: DateTime
+    nodes: Vec<Node>
+    workloads: Vec<WorkloadDefinition>
+    instances: Vec<WorkloadInstance>
+    version: u64                  # Monotonic version for CAS
+  }
+}
+
+# =============================================================================
+# TRAITS - State store behavioral interface
+# =============================================================================
+
+trait StateStore {
+  description: "Distributed state persistence interface"
+
+  # Node operations
+  async fn get_node(id: NodeId) -> Result<Option<Node>>
+  async fn list_nodes() -> Result<Vec<Node>>
+  async fn create_node(node: Node) -> Result<()>
+  async fn update_node(node: Node) -> Result<()>
+  async fn delete_node(id: NodeId) -> Result<()>
+
+  # Workload operations
+  async fn get_workload(id: WorkloadId) -> Result<Option<WorkloadDefinition>>
+  async fn list_workloads() -> Result<Vec<WorkloadDefinition>>
+  async fn create_workload(workload: WorkloadDefinition) -> Result<()>
+  async fn update_workload(workload: WorkloadDefinition) -> Result<()>
+  async fn delete_workload(id: WorkloadId) -> Result<()>
+
+  # Instance operations
+  async fn get_instance(id: InstanceId) -> Result<Option<WorkloadInstance>>
+  async fn list_instances() -> Result<Vec<WorkloadInstance>>
+  async fn list_instances_for_workload(workload_id: WorkloadId) -> Result<Vec<WorkloadInstance>>
+  async fn list_instances_for_node(node_id: NodeId) -> Result<Vec<WorkloadInstance>>
+  async fn create_instance(instance: WorkloadInstance) -> Result<()>
+  async fn update_instance(instance: WorkloadInstance) -> Result<()>
+  async fn delete_instance(id: InstanceId) -> Result<()>
+}
+
+trait WatchableState {
+  description: "State change observation interface"
+
+  async fn watch_nodes() -> impl Stream<Item = StateChange<Node>>
+  async fn watch_workloads() -> impl Stream<Item = StateChange<WorkloadDefinition>>
+  async fn watch_instances() -> impl Stream<Item = StateChange<WorkloadInstance>>
+}
+
+trait TransactionalState {
+  description: "Atomic multi-key operations"
+
+  async fn transaction(ops: Vec<StateOp>) -> Result<TransactionResult>
+  async fn compare_and_swap<T>(key: &str, expected: T, new: T) -> Result<bool>
+}
+
+# =============================================================================
+# CONSTRAINTS - State consistency rules
+# =============================================================================
+
+constraint ReferentialIntegrity {
+  description: "Foreign key relationships must be valid"
+  rules {
+    instance.workload_id must_reference existing WorkloadDefinition
+    instance.node_id must_reference existing Node
+    delete Node requires no_assigned_instances or cascade_delete
+    delete WorkloadDefinition requires no_instances or cascade_delete
+  }
+}
+
+constraint VersionConsistency {
+  description: "Optimistic concurrency control"
+  rules {
+    update requires current_version == expected_version
+    version increments_on each_mutation
+    stale_update returns ConflictError
+  }
+}
+
+constraint EventualConsistency {
+  description: "Distributed state convergence"
+  rules {
+    reads may_return stale_data within consistency_window
+    writes propagate_within bounded_time
+    conflicts resolved_by last_writer_wins or merge_function
+  }
+}
+
+constraint DataDurability {
+  description: "Persistence guarantees"
+  rules {
+    acknowledged_write implies durable_storage
+    crash_recovery restores last_committed_state
+    replication_factor >= 1 for_all critical_data
+  }
+}
+
+# =============================================================================
+# SYSTEMS - State management workflows
+# =============================================================================
+
+system StateReconciler {
+  description: "Ensures desired state matches actual state"
+  uses [StateStore]
+
+  workflow reconcile_loop {
+    1. Read desired state (WorkloadDefinitions)
+    2. Read actual state (WorkloadInstances)
+    3. Compute diff between desired and actual
+    4. Generate actions (create, update, delete instances)
+    5. Apply actions with retry logic
+    6. Update instance status
+    7. Sleep and repeat
+  }
+}
+
+system StateSynchronizer {
+  description: "Cross-node state replication"
+  uses [StateStore, WatchableState]
+
+  workflow sync_on_change {
+    1. Subscribe to state changes via watch
+    2. On change, serialize update
+    3. Propagate to peer nodes
+    4. Acknowledge replication
+    5. Handle conflicts via merge strategy
+  }
+}
+
+system StateQueryEngine {
+  description: "Efficient state queries with indexing"
+  uses [StateStore]
+
+  indexes {
+    nodes_by_status: NodeStatus -> Vec<Node>
+    instances_by_node: NodeId -> Vec<WorkloadInstance>
+    instances_by_workload: WorkloadId -> Vec<WorkloadInstance>
+    workloads_by_namespace: String -> Vec<WorkloadDefinition>
+  }
+
+  workflow indexed_query(index: Index, key: K) {
+    1. Check index cache
+    2. If cache_miss, scan and rebuild index
+    3. Return indexed results
+    4. Invalidate on write
+  }
+}
+
+# =============================================================================
+# IMPLEMENTATIONS - Concrete storage backends
+# =============================================================================
+
+implementation InMemoryStateStore of StateStore {
+  description: "Fast in-memory storage for testing and single-node"
+
+  storage {
+    nodes: Arc<RwLock<HashMap<NodeId, Node>>>
+    workloads: Arc<RwLock<HashMap<WorkloadId, WorkloadDefinition>>>
+    instances: Arc<RwLock<HashMap<InstanceId, WorkloadInstance>>>
+  }
+
+  characteristics {
+    latency: microseconds
+    durability: none (volatile)
+    consistency: strong (single-node)
+    scalability: vertical_only
+  }
+}
+
+implementation EtcdStateStore of StateStore {
+  description: "Distributed storage using etcd cluster"
+
+  key_schema {
+    nodes: "/orchestrator/nodes/{node_id}"
+    workloads: "/orchestrator/workloads/{workload_id}"
+    instances: "/orchestrator/instances/{instance_id}"
+    instances_by_node: "/orchestrator/nodes/{node_id}/instances/{instance_id}"
+    instances_by_workload: "/orchestrator/workloads/{workload_id}/instances/{instance_id}"
+  }
+
+  characteristics {
+    latency: milliseconds
+    durability: replicated
+    consistency: linearizable
+    scalability: horizontal (3-7 nodes typically)
+  }
+
+  features {
+    watch: native_etcd_watch
+    transactions: etcd_txn
+    leases: ttl_based_expiry
+  }
+
+  patterns {
+    dual_write: Write to primary key AND index keys atomically
+    lazy_indexing: Build secondary indexes on read
+  }
+}
