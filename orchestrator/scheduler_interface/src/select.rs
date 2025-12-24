@@ -1,4 +1,4 @@
-use orchestrator_shared_types::{NodeId, NodeResources, Keypair};
+use orchestrator_shared_types::{NodeId, NodeResources};
 use std::time::{Duration, Instant};
 use uuid::Uuid;
 
@@ -311,6 +311,7 @@ pub trait Selector {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use orchestrator_shared_types::Keypair;
 
     fn generate_node_id() -> NodeId {
         Keypair::generate().public_key()

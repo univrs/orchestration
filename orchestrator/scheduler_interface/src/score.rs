@@ -33,7 +33,7 @@
 //! After scoring, nodes are sorted in descending order by final_score, and the
 //! scheduler selects the highest-scoring node for placement.
 
-use orchestrator_shared_types::{Node, NodeId, WorkloadDefinition, Keypair};
+use orchestrator_shared_types::{Node, NodeId, WorkloadDefinition};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -511,6 +511,7 @@ pub trait Scorer: Send + Sync {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use orchestrator_shared_types::Keypair;
 
     fn generate_node_id() -> NodeId {
         Keypair::generate().public_key()

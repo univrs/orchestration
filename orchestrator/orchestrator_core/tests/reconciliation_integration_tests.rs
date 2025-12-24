@@ -46,6 +46,7 @@ struct MockContainerRuntime {
 #[derive(Debug, Clone)]
 struct MockContainer {
     id: ContainerId,
+    #[allow(dead_code)] // Reserved for future test assertions
     config: ContainerConfig,
     state: String,
     node_id: NodeId,
@@ -72,6 +73,7 @@ impl MockContainerRuntime {
         self.containers.read().await.len()
     }
 
+    #[allow(dead_code)] // Reserved for failure simulation tests
     async fn set_should_fail_create(&self, fail: bool) {
         *self.should_fail_create.write().await = fail;
     }
@@ -175,11 +177,13 @@ impl MockClusterManager {
         let _ = self.event_tx.send(Some(ClusterEvent::NodeAdded(node)));
     }
 
+    #[allow(dead_code)] // Reserved for node removal tests
     async fn remove_node(&self, node_id: NodeId) {
         self.nodes.write().await.remove(&node_id);
         let _ = self.event_tx.send(Some(ClusterEvent::NodeRemoved(node_id)));
     }
 
+    #[allow(dead_code)] // Reserved for node update tests
     async fn update_node(&self, node: Node) {
         self.nodes.write().await.insert(node.id, node.clone());
         let _ = self.event_tx.send(Some(ClusterEvent::NodeUpdated(node)));

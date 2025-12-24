@@ -36,6 +36,7 @@ where
 {
     state_store: Arc<RwLock<S>>,
     cluster_manager: Arc<RwLock<C>>,
+    #[allow(dead_code)] // Reserved for future scheduling operations
     scheduler: Arc<RwLock<Sch>>,
 }
 
@@ -514,6 +515,7 @@ where
     /// Handle initialize request.
     async fn handle_initialize(&self, id: Option<Value>, params: Value) -> JsonRpcResponse {
         #[derive(Debug, Deserialize)]
+        #[allow(dead_code)] // Fields reserved for future capability negotiation
         struct InitializeParams {
             #[serde(default)]
             protocol_version: Option<String>,

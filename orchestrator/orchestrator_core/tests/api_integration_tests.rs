@@ -3,24 +3,36 @@
 //! Tests the full API flow including authentication, CRUD operations,
 //! and cluster status.
 
+#[cfg(feature = "rest-api")]
 use std::collections::HashMap;
+#[cfg(feature = "rest-api")]
 use std::sync::Arc;
 
+#[cfg(feature = "rest-api")]
 use axum::body::Body;
+#[cfg(feature = "rest-api")]
 use axum::http::{Request, StatusCode};
+#[cfg(feature = "rest-api")]
 use base64::prelude::*;
+#[cfg(feature = "rest-api")]
 use chrono::Utc;
+#[cfg(feature = "rest-api")]
 use ed25519_dalek::{SigningKey, Signer};
+#[cfg(feature = "rest-api")]
 use rand::rngs::OsRng;
+#[cfg(feature = "rest-api")]
 use sha2::{Sha256, Digest};
+#[cfg(feature = "rest-api")]
 use tokio::sync::mpsc;
+#[cfg(feature = "rest-api")]
 use tower::ServiceExt;
+#[cfg(feature = "rest-api")]
 use uuid::Uuid;
 
+#[cfg(feature = "rest-api")]
 use orchestrator_shared_types::{
     Node, NodeResources, NodeStatus, WorkloadDefinition,
 };
-use state_store_interface::StateStore;
 
 // Import API modules (only available with rest-api feature)
 #[cfg(feature = "rest-api")]

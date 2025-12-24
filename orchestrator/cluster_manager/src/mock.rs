@@ -11,7 +11,7 @@ use tokio::sync::{watch, RwLock};
 use tracing::{debug, info};
 
 use cluster_manager_interface::{ClusterEvent, ClusterManager};
-use orchestrator_shared_types::{Node, NodeId, NodeResources, NodeStatus, Result, Keypair};
+use orchestrator_shared_types::{Node, NodeId, NodeResources, NodeStatus, Result};
 
 /// Mock cluster manager that simulates cluster operations in-memory.
 #[derive(Debug)]
@@ -144,7 +144,7 @@ impl ClusterManager for MockClusterManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use uuid::Uuid;
+    use orchestrator_shared_types::Keypair;
 
     #[tokio::test]
     async fn test_initialize() {

@@ -14,7 +14,7 @@ use uuid::Uuid;
 use container_runtime_interface::{
     ContainerRuntime, ContainerStatus, CreateContainerOptions,
 };
-use orchestrator_shared_types::{ContainerConfig, ContainerId, NodeId, Result, Keypair};
+use orchestrator_shared_types::{ContainerConfig, ContainerId, NodeId, Result};
 
 /// Mock container state
 #[derive(Debug, Clone)]
@@ -204,7 +204,7 @@ mod tests {
     }
 
     fn generate_node_id() -> NodeId {
-        Keypair::generate().public_key()
+        orchestrator_shared_types::Keypair::generate().public_key()
     }
 
     #[tokio::test]
