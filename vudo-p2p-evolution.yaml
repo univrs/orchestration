@@ -1,0 +1,86 @@
+# vudo-p2p-evolution.yaml
+name: "VUDO P2P & Resource Management Evolution"
+version: "2.0"
+
+coordinator:
+  strategy: biomimetic_development
+  principle: "Specify ontology → Generate tests → Implement → Validate"
+
+agents:
+  - name: ontologist
+    role: "DOL specification author"
+    focus: 
+      - P2P primitives (Hyphal, Anastomosis, etc.)
+      - Resource primitives (Substrate, Gradient, etc.)
+      - Signal primitives (Chemical, ActionPotential, etc.)
+    outputs: /specifications/domains/p2p/*.dol
+    
+  - name: validator  
+    role: "Test generation from specs"
+    depends_on: [ontologist]
+    focus:
+      - Generate Rust tests from DOL constraints
+      - Property-based tests for invariants
+      - Integration test scenarios
+    outputs: /tests/p2p/*.rs
+    
+  - name: architect
+    role: "Rust implementation design"
+    depends_on: [ontologist]
+    focus:
+      - Map DOL types to Rust structs
+      - Define trait implementations
+      - Design async message passing
+    outputs: /crates/p2p/src/*.rs
+    
+  - name: integrator
+    role: "Cross-domain integration"
+    depends_on: [validator, architect]
+    focus:
+      - Connect P2P to orchestrator_core
+      - Wire resource management to scheduler
+      - Hook signals to state_store
+    outputs: /crates/orchestrator_core/src/p2p_*.rs
+
+  - name: documenter
+    role: "Exegesis and API docs"
+    depends_on: [architect]
+    focus:
+      - Plain English explanations
+      - Usage examples
+      - Migration guides
+    outputs: /docs/p2p/*.md
+
+workflows:
+  hyphal_network:
+    description: "Implement P2P topology primitives"
+    phases:
+      1_specify: [ontologist]
+      2_test: [validator]
+      3_implement: [architect]
+      4_integrate: [integrator]
+      5_document: [documenter]
+      
+  substrate_allocation:
+    description: "Implement resource management"
+    depends_on: [hyphal_network.2_test]  # Can start after P2P tests exist
+    phases:
+      1_specify: [ontologist]
+      2_test: [validator]
+      3_implement: [architect]
+      4_integrate: [integrator]
+      
+  signal_propagation:
+    description: "Implement coordination signals"
+    depends_on: [hyphal_network.3_implement]  # Needs P2P impl
+    phases:
+      1_specify: [ontologist]
+      2_test: [validator]
+      3_implement: [architect]
+      4_integrate: [integrator]
+
+success_criteria:
+  - all_tests_pass: true
+  - clippy_warnings: 0
+  - coverage: ">= 80%"
+  - dol_alignment: ">= 85%"

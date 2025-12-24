@@ -1,0 +1,29 @@
+system univrs.storage @ 0.1.0 {
+  requires persistence.durable >= 0.0.1
+  requires concurrency.safe >= 0.0.1
+  requires encoding.serde >= 0.0.1
+
+  storage has key_value_storage
+  storage has transaction_support
+  storage has change_notification
+  default_backend is sqlite
+}
+
+exegesis {
+  Storage is where state persists across restarts.
+
+  Core principles:
+  1. ABSTRACTED: Code depends on trait, not implementation
+  2. PLUGGABLE: SQLite, etcd, or future backends
+  3. TRANSACTIONAL: Atomic multi-key operations
+  4. OBSERVABLE: Watch for changes (reactive patterns)
+
+  SQLite is the default because:
+  - Zero dependencies (embedded)
+  - ACID compliant (real transactions)
+  - Battle-tested (billions of deployments)
+  - Fast for reads (most operations)
+  - Portable (single file)
+
+  See storage-full-spec.md for complete specification.
+}

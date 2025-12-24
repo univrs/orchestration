@@ -1,4 +1,4 @@
-constraint resources.non.negative {
+constraint resources.non_negative {
   cpu_cores matches non_negative
   memory_mb matches non_negative
   disk_mb matches non_negative

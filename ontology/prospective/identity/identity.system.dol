@@ -1,0 +1,27 @@
+system univrs.identity @ 0.1.0 {
+  requires cryptography.ed25519 >= 0.0.1
+  requires encoding.base58 >= 0.0.1
+  requires storage.encrypted >= 0.0.1
+
+  identity has self_sovereign_identity
+  identity has signature_verification
+  identity has identity_derivation
+}
+
+exegesis {
+  Identity is the foundation of trust in a decentralized system.
+
+  Core principles:
+  1. SELF-SOVEREIGN: No central authority issues or revokes identities
+  2. CRYPTOGRAPHIC: Identity = public key, proof = signature
+  3. PORTABLE: Same identity works across all Univrs components
+  4. PERSISTENT: Identity survives system restarts (encrypted storage)
+
+  Ed25519 was chosen for:
+  - Speed (15,000+ signatures/sec)
+  - Small keys (32 bytes public, 64 bytes signature)
+  - Wide adoption (SSH, TLS, libp2p, blockchain)
+  - Deterministic signatures (no randomness needed)
+
+  See identity-full-spec.md for complete specification.
+}

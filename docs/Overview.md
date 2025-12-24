@@ -1,4 +1,4 @@
-### Rust Orchestration 
+### Univrs Orchestration 
 
 Let's break down how we can start realizing this vision with Rust code, focusing on 
 
@@ -42,8 +42,7 @@ touch Cargo.toml
         "container_runtime_interface",
         "cluster_manager_interface",
         "scheduler_interface",
-        # Future crates:
-        # "mcp_server",
+        "mcp_server",
         # "cloud_agnostic_layer",
         # "orchestrator_cli",
     ]

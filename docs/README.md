@@ -5,7 +5,7 @@ I'll go through each crate.
 
 ---
 
-**Overall Project Structure & Workspace (`ai_native_orchestrator/Cargo.toml`)**
+**Overall Project Structure & Workspace (`orchestrator/Cargo.toml`)**
 
 ```toml
 [workspace]
@@ -16,8 +16,7 @@ members = [
     "container_runtime_interface",
     "cluster_manager_interface",
     "scheduler_interface",
-    # Future crates:
-        # "mcp_server",
+   "mcp_server",
         # "cloud_agnostic_layer",
         # "orchestrator_cli",
 ]
