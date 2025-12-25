@@ -1,0 +1,326 @@
+// Spirit Registry System
+// Path: docs/ontology/prospective/spirits/systems/registry.dol
+// Version: 0.1.0
+
+module vudo.spirit.registry @ 0.1.0
+
+use vudo.spirit.Manifest
+use vudo.spirit.Version
+use vudo.spirit.VersionConstraint
+
+// ═══════════════════════════════════════════════════════════════════════════
+// REGISTRY STATE
+// ═══════════════════════════════════════════════════════════════════════════
+
+type EntryStatus is enum {
+    Published,
+    Deprecated,
+    Yanked,
+    Unlisted
+}
+
+gene RegistryEntry {
+    has manifest: Manifest
+    has wasm_bytes: Bytes
+    has published_by: PublicKey
+    has published_at: Timestamp
+    has downloads: UInt64
+    has stars: UInt64
+    has reviews: List<Review>
+    has status: EntryStatus
+
+    constraint valid_wasm {
+        hash(this.wasm_bytes) == this.manifest.wasm_hash
+    }
+
+    exegesis {
+        A RegistryEntry is a published Spirit package.
+
+        Contains:
+        - Full manifest with metadata
+        - Compiled WASM bytes
+        - Usage statistics
+        - Community reviews
+
+        Status lifecycle:
+        - Published: Available for summoning
+        - Deprecated: Still works, but newer version recommended
+        - Yanked: Security issue, cannot summon
+        - Unlisted: Hidden from search, direct link works
+    }
+}
+
+gene Review {
+    has reviewer: PublicKey
+    has rating: UInt8
+    has comment: String
+    has created_at: Timestamp
+    has helpful_votes: UInt64
+    
+    constraint valid_rating {
+        this.rating >= 1 && this.rating <= 5
+    }
+    
+    constraint valid_comment {
+        this.comment.length <= 2000
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// REGISTRY SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════
+
+system Registry @ 0.1.0 {
+    requires vudo.spirit @ 0.1.0
+    requires vudo.economics @ 0.1.0
+    requires vudo.hyphal @ 0.1.0
+    
+    state entries: Map<String, Map<Version, RegistryEntry>>
+    state authors: Map<PublicKey, List<String>>
+    state categories: Map<String, List<String>>
+    state search_index: SearchIndex
+    
+    // Publishing
+    all published_spirits is signed_by_author
+    all published_spirits is unique_version
+    
+    // Discovery
+    each spirit has searchable_metadata
+    each category has spirit_count
+    
+    // Economics
+    each summon transfers credits_to_author
+    each fork transfers attribution_credits
+    
+    exegesis {
+        The Spirit Registry is the package distribution system.
+        
+        Distribution model:
+        - Decentralized: Replicated across Mycelium nodes
+        - Content-addressed: WASM retrieved by hash
+        - Eventually consistent: Gossip propagation
+        
+        Discovery:
+        - Full-text search on name, description, keywords
+        - Category browsing
+        - Author profiles
+        - Trending/popular lists
+        
+        Trust model:
+        - All packages cryptographically signed
+        - Reviews contribute to reputation
+        - Download counts track popularity
+        - Yanking for security issues
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// REGISTRY TRAIT
+// ═══════════════════════════════════════════════════════════════════════════
+
+trait RegistryOperations {
+    uses RegistryEntry
+    uses Manifest
+    
+    // Publishing
+    fun publish(manifest: Manifest, wasm: Bytes) -> Result<RegistryEntry, RegistryError>
+    fun yank(name: String, version: Version, reason: String) -> Result<Void, RegistryError>
+    fun deprecate(name: String, version: Version, replacement: Option<Version>) -> Result<Void, RegistryError>
+    
+    // Querying
+    fun get(name: String, version: Version) -> Option<RegistryEntry>
+    fun get_latest(name: String) -> Option<RegistryEntry>
+    fun resolve(name: String, constraint: VersionConstraint) -> Option<RegistryEntry>
+    fun list_versions(name: String) -> List<Version>
+    
+    // Discovery
+    fun search(query: String, limit: UInt32) -> List<RegistryEntry>
+    fun by_category(category: String, limit: UInt32) -> List<RegistryEntry>
+    fun by_author(author: PublicKey, limit: UInt32) -> List<RegistryEntry>
+    fun trending(period: Duration, limit: UInt32) -> List<RegistryEntry>
+    fun newest(limit: UInt32) -> List<RegistryEntry>
+    
+    // Reviews
+    fun add_review(name: String, version: Version, review: Review) -> Result<Void, RegistryError>
+    fun get_reviews(name: String, version: Version) -> List<Review>
+    
+    // Events
+    each spirit_published emits RegistryEvent
+    each spirit_yanked emits RegistryEvent
+    each spirit_deprecated emits RegistryEvent
+    each review_added emits RegistryEvent
+    
+    // Laws
+    law unique_versions {
+        forall name: String, v: Version.
+            count(entries[name][v]) <= 1
+    }
+    
+    law signature_required {
+        forall entry: RegistryEntry.
+            verify(entry.manifest.author, entry.manifest.signature, entry.manifest.signing_payload())
+    }
+    
+    law immutable_published {
+        // Once published, WASM cannot change for same version
+        forall entry: RegistryEntry.
+            entry.status == Published implies
+                entry.wasm_bytes is_immutable
+    }
+    
+    exegesis {
+        RegistryOperations defines the package management API.
+        
+        Publishing flow:
+        1. Author creates manifest + WASM
+        2. Author signs with Ed25519 key
+        3. publish() validates and stores
+        4. Entry propagates via Mycelium
+        
+        Resolution follows semver:
+        - ^1.2.3 → Latest 1.x.x compatible
+        - ~1.2.3 → Latest 1.2.x
+        - =1.2.3 → Exact match only
+        
+        Yanking is for security emergencies:
+        - Yanked versions cannot be newly summoned
+        - Existing summons continue working
+        - Must provide reason for audit trail
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DEPENDENCY RESOLUTION
+// ═══════════════════════════════════════════════════════════════════════════
+
+trait DependencyResolver {
+    uses RegistryEntry
+    uses Manifest
+    
+    fun resolve_all(manifest: Manifest) -> Result<DependencyGraph, ResolverError>
+    fun check_conflicts(graph: DependencyGraph) -> List<Conflict>
+    fun compute_install_order(graph: DependencyGraph) -> List<RegistryEntry>
+    
+    exegesis {
+        DependencyResolver computes the full dependency tree.
+        
+        Algorithm (SAT-based):
+        1. Collect all version constraints
+        2. Build constraint satisfaction problem
+        3. Find compatible version set
+        4. Topological sort for install order
+        
+        Conflicts arise when:
+        - Two dependencies require incompatible versions
+        - Circular dependencies exist
+        - Required capability not available
+    }
+}
+
+gene DependencyGraph {
+    has root: String
+    has nodes: Map<String, RegistryEntry>
+    has edges: List<DependencyEdge>
+    has total_size: UInt64
+    has total_capabilities: List<CapabilityType>
+}
+
+gene DependencyEdge {
+    has from: String
+    has to: String
+    has constraint: VersionConstraint
+    has optional: Bool
+}
+
+gene Conflict {
+    has spirit: String
+    has constraint_a: VersionConstraint
+    has source_a: String
+    has constraint_b: VersionConstraint
+    has source_b: String
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// REGISTRY ERRORS
+// ═══════════════════════════════════════════════════════════════════════════
+
+type RegistryError is enum {
+    InvalidManifest,
+    InvalidSignature,
+    VersionExists,
+    SpiritNotFound,
+    VersionNotFound,
+    Unauthorized,
+    Yanked,
+    DependencyConflict,
+    WasmTooLarge,
+    RateLimited
+}
+
+type ResolverError is enum {
+    Unsatisfiable,
+    CircularDependency,
+    NotFound,
+    TooComplex
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// EVENTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+type RegistryEventType is enum {
+    Published,
+    Yanked,
+    Deprecated,
+    ReviewAdded,
+    Downloaded,
+    Starred
+}
+
+gene RegistryEvent {
+    has event_type: RegistryEventType
+    has spirit_name: String
+    has version: Option<Version>
+    has author: PublicKey
+    has timestamp: Timestamp
+    has details: Map<String, String>
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SEARCH INDEX
+// ═══════════════════════════════════════════════════════════════════════════
+
+gene SearchIndex {
+    has documents: Map<String, SearchDocument>
+    has inverted_index: Map<String, List<String>>
+    has last_updated: Timestamp
+    
+    exegesis {
+        Full-text search index for Spirit discovery.
+        
+        Indexes:
+        - Spirit name (exact + fuzzy)
+        - Description (full-text)
+        - Keywords (exact)
+        - Author name (exact)
+        - Category (exact)
+        
+        Ranking factors:
+        - Text relevance
+        - Download count
+        - Star count
+        - Recency
+        - Author reputation
+    }
+}
+
+gene SearchDocument {
+    has spirit_name: String
+    has text_content: String
+    has keywords: List<String>
+    has categories: List<String>
+    has author: PublicKey
+    has downloads: UInt64
+    has stars: UInt64
+    has published_at: Timestamp
+}

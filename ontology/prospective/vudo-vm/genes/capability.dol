@@ -1,0 +1,262 @@
+// VUDO VM Capability Gene
+// Path: docs/ontology/prospective/vudo-vm/genes/capability.dol
+// Version: 0.1.0
+
+module vudo.vm.capability @ 0.1.0
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CAPABILITY TYPES
+// ═══════════════════════════════════════════════════════════════════════════
+
+gene CapabilityType {
+    type: enum {
+        // Network capabilities
+        NetworkListen,
+        NetworkConnect,
+        NetworkBroadcast,
+
+        // Storage capabilities
+        StorageRead,
+        StorageWrite,
+        StorageDelete,
+
+        // Compute capabilities
+        SpawnSandbox,
+        CrossSandboxCall,
+
+        // Sensor capabilities (read external state)
+        SensorTime,
+        SensorRandom,
+        SensorEnvironment,
+
+        // Actuator capabilities (affect external state)
+        ActuatorLog,
+        ActuatorNotify,
+        ActuatorCredit,
+
+        // Special capabilities
+        Unrestricted  // Only for system Spirits
+    }
+
+    exegesis {
+        CapabilityType defines the categories of privileged operations.
+
+        Capabilities are organized into functional groups:
+        - Network: Communication with peers and external services
+        - Storage: Persistent data access and modification
+        - Compute: Sandbox creation and cross-sandbox calls
+        - Sensor: Read-only access to system state (time, random, env)
+        - Actuator: Write operations that affect external state
+
+        The Unrestricted capability is only granted to system Spirits
+        and bypasses all capability checks.
+    }
+}
+
+gene CapabilityScope {
+    type: enum {
+        Global,
+        Sandboxed,
+        Peer,
+        Domain
+    }
+
+    exegesis {
+        CapabilityScope defines the boundaries of a capability grant.
+
+        Scope types:
+        - Global: No restriction on target
+        - Sandboxed: Only within the sandbox's own context
+        - Peer: Limited to specific peer (peer_id stored in grant metadata)
+        - Domain: Network domain pattern match (pattern stored in grant metadata)
+
+        Scopes enable the principle of least privilege by limiting
+        the reach of granted capabilities.
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CAPABILITY GRANT
+// ═══════════════════════════════════════════════════════════════════════════
+
+gene CapabilityGrant {
+    has id: UInt64
+    has capability: CapabilityType
+    has scope: CapabilityScope
+    has granter: PublicKey
+    has grantee: PublicKey
+    has granted_at: Timestamp
+    has expires_at: Option<Timestamp>
+    has revoked: Bool
+    has signature: Signature
+    
+    constraint valid_signature {
+        verify(this.granter, this.signature, this.hash_for_signing())
+    }
+    
+    constraint not_expired {
+        match this.expires_at {
+            Some(expiry) { now() < expiry }
+            None { true }
+        }
+    }
+    
+    constraint not_revoked {
+        this.revoked == false
+    }
+    
+    exegesis {
+        A CapabilityGrant is a cryptographically signed permission.
+        
+        Grants are:
+        - Explicit: No implicit permissions
+        - Signed: Verifiable authenticity
+        - Scoped: Limited to specific operations/targets
+        - Temporal: Can expire
+        - Revocable: Can be withdrawn
+        
+        The granter must have the capability to grant it.
+        Capabilities follow the principle of least privilege.
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CAPABILITY REQUEST
+// ═══════════════════════════════════════════════════════════════════════════
+
+gene CapabilityRequest {
+    has id: UInt64
+    has sandbox_id: UInt64
+    has capability: CapabilityType
+    has scope: CapabilityScope
+    has reason: String
+    has requested_at: Timestamp
+    has status: RequestStatus
+    
+    type RequestStatus is enum {
+        Pending,
+        Granted,
+        Denied,
+        Expired
+    }
+    
+    constraint valid_reason {
+        this.reason.length > 0
+        this.reason.length <= 500
+    }
+    
+    exegesis {
+        A CapabilityRequest is how a Sandbox asks for permissions.
+        
+        The request includes a reason for audit purposes.
+        Requests may be:
+        - Auto-granted: If within Spirit's declared requirements
+        - User-prompted: If escalation required
+        - Denied: If policy violation
+        
+        All requests are logged for security audit.
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CAPABILITY CHAIN
+// ═══════════════════════════════════════════════════════════════════════════
+
+gene CapabilityChain {
+    has root_grant: CapabilityGrant
+    has delegations: List<CapabilityGrant>
+    
+    constraint valid_chain {
+        // Each delegation must be from previous grantee
+        for i in 0..this.delegations.length - 1 {
+            this.delegations[i].grantee == this.delegations[i + 1].granter
+        }
+    }
+    
+    constraint no_escalation {
+        // Delegated scope cannot exceed original
+        for delegation in this.delegations {
+            delegation.scope.is_subset_of(this.root_grant.scope)
+        }
+    }
+    
+    exegesis {
+        CapabilityChain tracks delegation history.
+        
+        Capabilities can be delegated, but:
+        - Cannot exceed original scope
+        - Chain is verifiable end-to-end
+        - Revocation cascades through chain
+        
+        This enables "capability attenuation" -
+        passing narrower permissions downstream.
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CAPABILITY SET
+// ═══════════════════════════════════════════════════════════════════════════
+
+gene CapabilitySet {
+    has grants: Map<CapabilityType, List<CapabilityGrant>>
+    
+    fun has_capability(cap: CapabilityType, scope: CapabilityScope) -> Bool {
+        match this.grants.get(cap) {
+            Some(grants) {
+                for grant in grants {
+                    if grant.scope.covers(scope) && grant.is_valid() {
+                        return true
+                    }
+                }
+                return false
+            }
+            None { false }
+        }
+    }
+    
+    fun effective_scope(cap: CapabilityType) -> Option<CapabilityScope> {
+        match this.grants.get(cap) {
+            Some(grants) {
+                // Return union of all valid grant scopes
+                grants.filter(|g| g.is_valid())
+                      .map(|g| g.scope)
+                      .union()
+            }
+            None { None }
+        }
+    }
+    
+    exegesis {
+        CapabilitySet is the effective permissions for a Sandbox.
+        
+        Computed from:
+        - Spirit manifest required capabilities
+        - User-granted capabilities
+        - System default capabilities
+        
+        Checked before every privileged operation.
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DEFAULT CAPABILITY SETS
+// ═══════════════════════════════════════════════════════════════════════════
+
+const MINIMAL_CAPABILITIES: List<CapabilityType> = [
+    SensorTime,
+    SensorRandom,
+    ActuatorLog
+]
+
+const NETWORK_SPIRIT_CAPABILITIES: List<CapabilityType> = [
+    SensorTime,
+    SensorRandom,
+    ActuatorLog,
+    NetworkConnect,
+    StorageRead,
+    StorageWrite
+]
+
+const SYSTEM_SPIRIT_CAPABILITIES: List<CapabilityType> = [
+    Unrestricted
+]

@@ -13,7 +13,7 @@ constraint scheduling.feasibility {
   taints requires matching_tolerations
   matching_tolerations has operator
   operator is equal
-  operator is exists
+  operator is present
 
   volume_affinity requires available_zone
 
