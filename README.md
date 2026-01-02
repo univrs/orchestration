@@ -1,4 +1,7 @@
-# The Dawn of AI-Native Orchestration: A Rust-Powered Future for Software Development
+# The Dawn of AI-Native Orchestration: A Rust-Powered Future for Software Development 
+
+> [!CAUTION]
+> This project is a research demonstrator. It is in early development and may change significantly. Using permissive Univrs tools in your repository requires careful attention to security considerations and careful human supervision, and even then things can still go wrong. Use it with caution, and at your own risk. See [Disclaimer](#disclaimer).
 
 ## SDLC: Revolution 
 
@@ -294,3 +297,13 @@ This strategic direction promises to unlock a new era of efficiency, security, a
 37. **Top 10 Research Papers on AI Agents (2025) - Analytics Vidhya**, [https://www.analyticsvidhya.com/blog/2024/12/ai-agents-research-papers/](https://www.analyticsvidhya.com/blog/2024/12/ai-agents-research-papers/)
 38. **How AI Agents Are Transforming The Software Industry - Forbes**, [https://www.forbes.com/councils/forbestechcouncil/2025/03/13/how-ai-agents-are-transforming-the-software-industry/](https://www.forbes.com/councils/forbestechcouncil/2025/03/13/how-ai-agents-are-transforming-the-software-industry/)
 39. **How AI Agents Are Transforming Software Engineering and the Future of Product Development - IEEE Computer Society**, [https://www.computer.org/csdl/magazine/co/2025/05/10970187/260SnIeoUUM](https://www.computer.org/csdl/magazine/co/2025/05/10970187/260SnIeoUUM)
+
+## Disclaimer
+
+> [!IMPORTANT] > **This is an experimental system. _We break things frequently_.**
+
+- Not accepting contributions yet (but we plan to!)
+- No stability guarantees
+- Pin commits if you need consistency
+- This is a learning resource, not production software
+- **No support provided** - See [SUPPORT.md](SUPPORT.md)

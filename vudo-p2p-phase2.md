@@ -753,7 +753,7 @@ Gene CreditTransaction {
 
   amount: u64
 
-  fee: u64              # Network fee (goes to Bondye pool)
+  fee: u64              # Network fee (goes to Bondieu pool)
 
   memo: String          # Human-readable description
 
@@ -787,7 +787,7 @@ Gene CreditLedger {
 
   transaction_log: Vec<CreditTransaction>
 
-  bondye_pool: u64      # Network fee accumulator
+  bondieu_pool: u64      # Network fee accumulator
 
   
 
@@ -807,7 +807,7 @@ Gene CreditLedger {
 
     balances.get_mut(tx.to).balance += tx.amount
 
-    bondye_pool += tx.fee
+    bondieu_pool += tx.fee
 
     
 
@@ -899,7 +899,7 @@ System CreditSystem {
 
   invariant conservation:
 
-    sum(ledger.balances.values().balance) + ledger.bondye_pool == total_minted
+    sum(ledger.balances.values().balance) + ledger.bondieu_pool == total_minted
 
   
 
