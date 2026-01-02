@@ -20,8 +20,8 @@ services:
   # Bootstrap node - seeds the cluster
   bootstrap:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: univrs-orchestration/orchestrator/Dockerfile
     container_name: orchestrator-bootstrap
     hostname: bootstrap
     environment:
@@ -51,8 +51,8 @@ services:
   # Worker node 1
   worker1:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: univrs-orchestration/orchestrator/Dockerfile
     container_name: orchestrator-worker1
     hostname: worker1
     depends_on:
@@ -85,8 +85,8 @@ services:
   # Worker node 2
   worker2:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: univrs-orchestration/orchestrator/Dockerfile
     container_name: orchestrator-worker2
     hostname: worker2
     depends_on:
@@ -107,6 +107,40 @@ services:
       - LOG_JSON=false
     ports:
       - "9092:9090"     # Health/metrics API
+    networks:
+      - orchestrator-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9090/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # Worker node 3
+  worker3:
+    build:
+      context: ../..
+      dockerfile: univrs-orchestration/orchestrator/Dockerfile
+    container_name: orchestrator-worker3
+    hostname: worker3
+    depends_on:
+      bootstrap:
+        condition: service_healthy
+    environment:
+      - NODE_ID=00000000-0000-0000-0000-000000000004
+      - NODE_ROLE=worker
+      - LISTEN_ADDR=0.0.0.0:7280
+      - PUBLIC_ADDR=worker3:7280
+      - SEED_NODES=bootstrap:7280
+      - API_PORT=9090
+      - CLUSTER_ID=orchestrator-local
+      - NODE_CPU=2.0
+      - NODE_MEMORY_MB=2048
+      - NODE_DISK_MB=25600
+      - LOG_LEVEL=info
+      - LOG_JSON=false
+    ports:
+      - "9093:9090"     # Health/metrics API
     networks:
       - orchestrator-net
     healthcheck:

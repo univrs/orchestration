@@ -50,6 +50,46 @@ pub enum EventTopic {
     Cluster,
     /// All events.
     All,
+    /// Resource availability gradient signals (P2P).
+    Gradient,
+    /// Leader election consensus messages (P2P).
+    Election,
+    /// Economic/credit transactions (P2P).
+    Credit,
+    /// Coordination barriers and synchronization (P2P).
+    Septal,
+}
+
+impl EventTopic {
+    /// Check if this is a P2P network topic.
+    pub fn is_p2p_topic(&self) -> bool {
+        matches!(
+            self,
+            EventTopic::Gradient | EventTopic::Election | EventTopic::Credit | EventTopic::Septal
+        )
+    }
+
+    /// Convert to gossipsub topic string.
+    pub fn to_gossipsub_topic(&self) -> Option<String> {
+        match self {
+            EventTopic::Gradient => Some("/orchestrator/gradient/1.0.0".to_string()),
+            EventTopic::Election => Some("/orchestrator/election/1.0.0".to_string()),
+            EventTopic::Credit => Some("/orchestrator/credit/1.0.0".to_string()),
+            EventTopic::Septal => Some("/orchestrator/septal/1.0.0".to_string()),
+            _ => None, // Non-P2P topics don't map to gossipsub
+        }
+    }
+
+    /// Create from gossipsub topic string.
+    pub fn from_gossipsub_topic(topic: &str) -> Option<Self> {
+        match topic {
+            "/orchestrator/gradient/1.0.0" => Some(EventTopic::Gradient),
+            "/orchestrator/election/1.0.0" => Some(EventTopic::Election),
+            "/orchestrator/credit/1.0.0" => Some(EventTopic::Credit),
+            "/orchestrator/septal/1.0.0" => Some(EventTopic::Septal),
+            _ => None,
+        }
+    }
 }
 
 impl EventTopic {
@@ -72,6 +112,23 @@ impl EventTopic {
             EventTopic::Cluster => matches!(
                 event.event_type,
                 EventType::ClusterHealthChanged | EventType::ClusterCapacityChanged
+            ),
+            // P2P network topics
+            EventTopic::Gradient => matches!(
+                event.event_type,
+                EventType::ResourceGradientUpdate
+            ),
+            EventTopic::Election => matches!(
+                event.event_type,
+                EventType::LeaderElectionMessage
+            ),
+            EventTopic::Credit => matches!(
+                event.event_type,
+                EventType::CreditTransaction
+            ),
+            EventTopic::Septal => matches!(
+                event.event_type,
+                EventType::SeptalCoordination
             ),
         }
     }
@@ -103,6 +160,26 @@ pub enum EventType {
     Unsubscribed,
     Error,
     Heartbeat,
+
+    // P2P network events (gossipsub)
+    /// Resource availability gradient update from network.
+    ResourceGradientUpdate,
+    /// Leader election message from network.
+    LeaderElectionMessage,
+    /// Credit/economic transaction from network.
+    CreditTransaction,
+    /// Septal coordination/barrier message from network.
+    SeptalCoordination,
+
+    // Network bridge events
+    /// Message received from P2P network.
+    NetworkMessageReceived,
+    /// Message published to P2P network.
+    NetworkMessagePublished,
+    /// Peer discovered on network.
+    PeerDiscovered,
+    /// Peer removed from network.
+    PeerRemoved,
 }
 
 /// A streamable event sent to WebSocket clients.
@@ -295,6 +372,70 @@ pub enum ClientMessage {
     Unsubscribe { topics: Vec<EventTopic> },
     /// Ping for keep-alive.
     Ping,
+
+    // P2P Network Actions
+
+    /// Publish a gradient message to the network.
+    PublishGradient {
+        /// CPU availability (0.0-1.0).
+        cpu_available: f32,
+        /// Memory availability (0.0-1.0).
+        memory_available: f32,
+        /// Disk availability (0.0-1.0).
+        disk_available: f32,
+    },
+
+    /// Publish an election vote/message.
+    PublishElection {
+        /// Election round number.
+        round: u64,
+        /// Ballot number.
+        ballot: u64,
+        /// Phase: "prepare", "promise", "accept", "accepted", "elected".
+        phase: String,
+        /// Candidate/proposer node ID.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        proposer: Option<String>,
+    },
+
+    /// Publish a credit transaction.
+    PublishCredit {
+        /// Recipient node ID.
+        to: String,
+        /// Amount to transfer.
+        amount: f64,
+        /// Optional resource type.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        resource: Option<String>,
+    },
+
+    /// Publish a septal coordination message.
+    PublishSeptal {
+        /// Barrier type.
+        barrier_type: String,
+        /// Barrier ID (if joining existing barrier).
+        #[serde(skip_serializing_if = "Option::is_none")]
+        barrier_id: Option<String>,
+        /// Participants.
+        #[serde(default)]
+        participants: Vec<String>,
+        /// Timeout in milliseconds.
+        #[serde(default = "default_timeout")]
+        timeout_ms: u64,
+    },
+
+    /// Request peer list for a topic.
+    GetPeers {
+        /// Topic to query peers for.
+        topic: EventTopic,
+    },
+
+    /// Get network bridge statistics.
+    GetNetworkStats,
+}
+
+fn default_timeout() -> u64 {
+    5000
 }
 
 /// Subscription state for a connected client.

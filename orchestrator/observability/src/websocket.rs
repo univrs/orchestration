@@ -1,7 +1,9 @@
 //! WebSocket handler for the `/api/v1/events` endpoint.
 //!
-//! Handles WebSocket connections, client subscriptions, and event streaming.
+//! Handles WebSocket connections, client subscriptions, event streaming,
+//! and P2P network actions via the NetworkEventBridge.
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use axum::{
@@ -15,20 +17,70 @@ use futures_util::{SinkExt, StreamExt};
 use tokio::sync::broadcast;
 use uuid::Uuid;
 
-use crate::events::{ClientMessage, EventHub, StreamEvent};
+use crate::events::{ClientMessage, EventHub, EventType, StreamEvent};
+use crate::network_bridge::NetworkEventBridge;
+use crate::network_messages::{
+    BarrierType, CreditMessage, ElectionMessage, ElectionPhase, GradientMessage, SeptalMessage,
+};
 
-/// WebSocket handler for event streaming.
+/// WebSocket handler state (event hub + optional network bridge).
+#[derive(Clone)]
+pub struct WebSocketState {
+    /// Local event hub for subscriptions and broadcasts.
+    pub event_hub: EventHub,
+    /// Optional network bridge for P2P messaging.
+    pub network_bridge: Option<Arc<NetworkEventBridge>>,
+}
+
+impl WebSocketState {
+    /// Create state with just event hub (no P2P).
+    pub fn new(event_hub: EventHub) -> Self {
+        Self {
+            event_hub,
+            network_bridge: None,
+        }
+    }
+
+    /// Create state with event hub and network bridge.
+    pub fn with_network_bridge(event_hub: EventHub, network_bridge: Arc<NetworkEventBridge>) -> Self {
+        Self {
+            event_hub,
+            network_bridge: Some(network_bridge),
+        }
+    }
+}
+
+/// WebSocket handler for event streaming (without P2P).
 pub async fn events_handler(
     ws: WebSocketUpgrade,
     State(event_hub): State<EventHub>,
 ) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| handle_socket(socket, event_hub))
+    ws.on_upgrade(move |socket| handle_socket(socket, event_hub, None))
+}
+
+/// WebSocket handler for event streaming with P2P network bridge.
+pub async fn events_handler_with_bridge(
+    ws: WebSocketUpgrade,
+    State(state): State<WebSocketState>,
+) -> impl IntoResponse {
+    ws.on_upgrade(move |socket| {
+        handle_socket(socket, state.event_hub, state.network_bridge)
+    })
 }
 
 /// Handle an individual WebSocket connection.
-async fn handle_socket(socket: WebSocket, event_hub: EventHub) {
+async fn handle_socket(
+    socket: WebSocket,
+    event_hub: EventHub,
+    network_bridge: Option<Arc<NetworkEventBridge>>,
+) {
     let client_id = Uuid::new_v4().to_string();
-    tracing::info!(client_id = %client_id, "WebSocket client connected");
+    let has_network = network_bridge.is_some();
+    tracing::info!(
+        client_id = %client_id,
+        has_network = %has_network,
+        "WebSocket client connected"
+    );
 
     // Register client
     event_hub.register_client(client_id.clone()).await;
@@ -39,8 +91,20 @@ async fn handle_socket(socket: WebSocket, event_hub: EventHub) {
     // Split socket into sender and receiver
     let (mut ws_sender, mut ws_receiver) = socket.split();
 
-    // Send connected event
-    let connected_event = StreamEvent::connected(&client_id);
+    // Send connected event with network capability info
+    let connected_event = StreamEvent::new(
+        EventType::Connected,
+        serde_json::json!({
+            "client_id": client_id,
+            "message": "Connected to event stream",
+            "network_enabled": has_network,
+            "p2p_topics": if has_network {
+                vec!["gradient", "election", "credit", "septal"]
+            } else {
+                vec![]
+            }
+        }),
+    );
     if let Ok(json) = serde_json::to_string(&connected_event) {
         let _ = ws_sender.send(Message::Text(json.into())).await;
     }
@@ -61,6 +125,7 @@ async fn handle_socket(socket: WebSocket, event_hub: EventHub) {
                             &text,
                             &client_id,
                             &event_hub,
+                            network_bridge.as_ref(),
                             &mut ws_sender,
                         ).await {
                             tracing::warn!(
@@ -154,6 +219,9 @@ async fn handle_socket(socket: WebSocket, event_hub: EventHub) {
 
     // Cleanup
     event_hub.unregister_client(&client_id).await;
+    if let Some(ref bridge) = network_bridge {
+        bridge.remove_client(&client_id).await;
+    }
     tracing::info!(client_id = %client_id, "WebSocket client disconnected");
 }
 
@@ -162,6 +230,7 @@ async fn handle_client_message(
     text: &str,
     client_id: &str,
     event_hub: &EventHub,
+    network_bridge: Option<&Arc<NetworkEventBridge>>,
     ws_sender: &mut futures_util::stream::SplitSink<WebSocket, Message>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let msg: ClientMessage = serde_json::from_str(text)?;
@@ -175,6 +244,14 @@ async fn handle_client_message(
             );
 
             event_hub.update_subscription(client_id, &topics, true).await;
+
+            // Also update network bridge subscriptions for P2P topics
+            if let Some(bridge) = network_bridge {
+                let p2p_topics: Vec<_> = topics.iter().filter(|t| t.is_p2p_topic()).copied().collect();
+                if !p2p_topics.is_empty() {
+                    bridge.update_client_subscriptions(client_id, p2p_topics, true).await;
+                }
+            }
 
             // Send confirmation
             let response = StreamEvent::subscribed(&topics);
@@ -190,9 +267,17 @@ async fn handle_client_message(
 
             event_hub.update_subscription(client_id, &topics, false).await;
 
+            // Also update network bridge subscriptions
+            if let Some(bridge) = network_bridge {
+                let p2p_topics: Vec<_> = topics.iter().filter(|t| t.is_p2p_topic()).copied().collect();
+                if !p2p_topics.is_empty() {
+                    bridge.update_client_subscriptions(client_id, p2p_topics, false).await;
+                }
+            }
+
             // Send confirmation
             let response = StreamEvent::new(
-                crate::events::EventType::Unsubscribed,
+                EventType::Unsubscribed,
                 serde_json::json!({
                     "topics": topics,
                     "message": "Successfully unsubscribed from topics"
@@ -202,13 +287,234 @@ async fn handle_client_message(
             ws_sender.send(Message::Text(json.into())).await?;
         }
         ClientMessage::Ping => {
-            // Respond with pong (using WebSocket native pong or text response)
+            // Respond with pong
             let pong = StreamEvent::new(
-                crate::events::EventType::Heartbeat,
+                EventType::Heartbeat,
                 serde_json::json!({ "pong": true }),
             );
             let json = serde_json::to_string(&pong)?;
             ws_sender.send(Message::Text(json.into())).await?;
+        }
+
+        // P2P Network Actions
+        ClientMessage::PublishGradient {
+            cpu_available,
+            memory_available,
+            disk_available,
+        } => {
+            if let Some(bridge) = network_bridge {
+                let peer_id = bridge.local_peer_id().await;
+                let gradient = GradientMessage::new(
+                    peer_id,
+                    cpu_available,
+                    memory_available,
+                    disk_available,
+                );
+
+                match bridge.publish_gradient(gradient).await {
+                    Ok(_) => {
+                        let response = StreamEvent::new(
+                            EventType::NetworkMessagePublished,
+                            serde_json::json!({
+                                "topic": "gradient",
+                                "message": "Gradient published to network"
+                            }),
+                        );
+                        let json = serde_json::to_string(&response)?;
+                        ws_sender.send(Message::Text(json.into())).await?;
+                    }
+                    Err(e) => {
+                        let error = StreamEvent::error(format!("Failed to publish gradient: {}", e));
+                        let json = serde_json::to_string(&error)?;
+                        ws_sender.send(Message::Text(json.into())).await?;
+                    }
+                }
+            } else {
+                let error = StreamEvent::error("Network bridge not available");
+                let json = serde_json::to_string(&error)?;
+                ws_sender.send(Message::Text(json.into())).await?;
+            }
+        }
+
+        ClientMessage::PublishElection {
+            round,
+            ballot,
+            phase,
+            proposer,
+        } => {
+            if let Some(bridge) = network_bridge {
+                let peer_id = bridge.local_peer_id().await;
+                let proposer_id = proposer.unwrap_or(peer_id);
+
+                let election_phase = match phase.as_str() {
+                    "prepare" => ElectionPhase::Prepare,
+                    "promise" => ElectionPhase::Promise,
+                    "accept" => ElectionPhase::Accept,
+                    "accepted" => ElectionPhase::Accepted,
+                    "elected" => ElectionPhase::Elected,
+                    _ => ElectionPhase::Prepare,
+                };
+
+                let election = match election_phase {
+                    ElectionPhase::Prepare => ElectionMessage::prepare(proposer_id, round, ballot, 3),
+                    ElectionPhase::Elected => ElectionMessage::elected(proposer_id, round, ballot),
+                    _ => ElectionMessage::prepare(proposer_id, round, ballot, 3),
+                };
+
+                match bridge.publish_election(election).await {
+                    Ok(_) => {
+                        let response = StreamEvent::new(
+                            EventType::NetworkMessagePublished,
+                            serde_json::json!({
+                                "topic": "election",
+                                "phase": phase,
+                                "message": "Election message published to network"
+                            }),
+                        );
+                        let json = serde_json::to_string(&response)?;
+                        ws_sender.send(Message::Text(json.into())).await?;
+                    }
+                    Err(e) => {
+                        let error = StreamEvent::error(format!("Failed to publish election: {}", e));
+                        let json = serde_json::to_string(&error)?;
+                        ws_sender.send(Message::Text(json.into())).await?;
+                    }
+                }
+            } else {
+                let error = StreamEvent::error("Network bridge not available");
+                let json = serde_json::to_string(&error)?;
+                ws_sender.send(Message::Text(json.into())).await?;
+            }
+        }
+
+        ClientMessage::PublishCredit { to, amount, resource } => {
+            if let Some(bridge) = network_bridge {
+                let peer_id = bridge.local_peer_id().await;
+
+                let credit = if let Some(res) = resource {
+                    CreditMessage::resource_payment(peer_id, to, amount, res)
+                } else {
+                    CreditMessage::transfer(peer_id, to, amount)
+                };
+
+                match bridge.publish_credit(credit).await {
+                    Ok(_) => {
+                        let response = StreamEvent::new(
+                            EventType::NetworkMessagePublished,
+                            serde_json::json!({
+                                "topic": "credit",
+                                "message": "Credit transaction published to network"
+                            }),
+                        );
+                        let json = serde_json::to_string(&response)?;
+                        ws_sender.send(Message::Text(json.into())).await?;
+                    }
+                    Err(e) => {
+                        let error = StreamEvent::error(format!("Failed to publish credit: {}", e));
+                        let json = serde_json::to_string(&error)?;
+                        ws_sender.send(Message::Text(json.into())).await?;
+                    }
+                }
+            } else {
+                let error = StreamEvent::error("Network bridge not available");
+                let json = serde_json::to_string(&error)?;
+                ws_sender.send(Message::Text(json.into())).await?;
+            }
+        }
+
+        ClientMessage::PublishSeptal {
+            barrier_type,
+            barrier_id: _,
+            participants,
+            timeout_ms,
+        } => {
+            if let Some(bridge) = network_bridge {
+                let peer_id = bridge.local_peer_id().await;
+
+                let barrier = match barrier_type.as_str() {
+                    "two_phase_commit" => BarrierType::TwoPhaseCommit,
+                    "state_consistency" => BarrierType::StateConsistency,
+                    "scheduling_sync" => BarrierType::SchedulingSync,
+                    "reservation_sync" => BarrierType::ReservationSync,
+                    _ => BarrierType::Checkpoint,
+                };
+
+                let septal = SeptalMessage::initiate(barrier, peer_id, participants, timeout_ms);
+
+                match bridge.publish_septal(septal).await {
+                    Ok(_) => {
+                        let response = StreamEvent::new(
+                            EventType::NetworkMessagePublished,
+                            serde_json::json!({
+                                "topic": "septal",
+                                "barrier_type": barrier_type,
+                                "message": "Septal coordination published to network"
+                            }),
+                        );
+                        let json = serde_json::to_string(&response)?;
+                        ws_sender.send(Message::Text(json.into())).await?;
+                    }
+                    Err(e) => {
+                        let error = StreamEvent::error(format!("Failed to publish septal: {}", e));
+                        let json = serde_json::to_string(&error)?;
+                        ws_sender.send(Message::Text(json.into())).await?;
+                    }
+                }
+            } else {
+                let error = StreamEvent::error("Network bridge not available");
+                let json = serde_json::to_string(&error)?;
+                ws_sender.send(Message::Text(json.into())).await?;
+            }
+        }
+
+        ClientMessage::GetPeers { topic } => {
+            if let Some(bridge) = network_bridge {
+                match bridge.get_peers(topic).await {
+                    Ok(peers) => {
+                        let response = StreamEvent::new(
+                            EventType::NetworkMessageReceived,
+                            serde_json::json!({
+                                "topic": topic,
+                                "peers": peers,
+                                "peer_count": peers.len()
+                            }),
+                        );
+                        let json = serde_json::to_string(&response)?;
+                        ws_sender.send(Message::Text(json.into())).await?;
+                    }
+                    Err(e) => {
+                        let error = StreamEvent::error(format!("Failed to get peers: {}", e));
+                        let json = serde_json::to_string(&error)?;
+                        ws_sender.send(Message::Text(json.into())).await?;
+                    }
+                }
+            } else {
+                let error = StreamEvent::error("Network bridge not available");
+                let json = serde_json::to_string(&error)?;
+                ws_sender.send(Message::Text(json.into())).await?;
+            }
+        }
+
+        ClientMessage::GetNetworkStats => {
+            if let Some(bridge) = network_bridge {
+                let stats = bridge.get_stats().await;
+                let response = StreamEvent::new(
+                    EventType::NetworkMessageReceived,
+                    serde_json::json!({
+                        "messages_received": stats.messages_received,
+                        "messages_published": stats.messages_published,
+                        "messages_dropped": stats.messages_dropped,
+                        "peer_count": stats.peer_count,
+                        "messages_by_topic": stats.messages_by_topic
+                    }),
+                );
+                let json = serde_json::to_string(&response)?;
+                ws_sender.send(Message::Text(json.into())).await?;
+            } else {
+                let error = StreamEvent::error("Network bridge not available");
+                let json = serde_json::to_string(&error)?;
+                ws_sender.send(Message::Text(json.into())).await?;
+            }
         }
     }
 

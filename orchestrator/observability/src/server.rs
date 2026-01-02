@@ -29,7 +29,8 @@ use tower_http::trace::TraceLayer;
 use crate::events::EventHub;
 use crate::health::{AggregatedHealth, HealthChecker};
 use crate::metrics::MetricsRegistry;
-use crate::websocket::events_handler;
+use crate::network_bridge::NetworkEventBridge;
+use crate::websocket::{events_handler, events_handler_with_bridge, WebSocketState};
 
 /// Configuration for the observability server.
 #[derive(Debug, Clone)]
@@ -76,6 +77,7 @@ pub struct ObservabilityState {
     health_checker: HealthChecker,
     metrics_registry: Arc<RwLock<Option<MetricsRegistry>>>,
     event_hub: EventHub,
+    network_bridge: Option<Arc<NetworkEventBridge>>,
 }
 
 impl ObservabilityState {
@@ -85,6 +87,7 @@ impl ObservabilityState {
             health_checker,
             metrics_registry: Arc::new(RwLock::new(None)),
             event_hub: EventHub::default(),
+            network_bridge: None,
         }
     }
 
@@ -94,12 +97,18 @@ impl ObservabilityState {
             health_checker,
             metrics_registry: Arc::new(RwLock::new(None)),
             event_hub,
+            network_bridge: None,
         }
     }
 
     /// Set the metrics registry.
     pub async fn set_metrics_registry(&self, registry: MetricsRegistry) {
         *self.metrics_registry.write().await = Some(registry);
+    }
+
+    /// Set the network bridge for P2P messaging.
+    pub fn set_network_bridge(&mut self, bridge: Arc<NetworkEventBridge>) {
+        self.network_bridge = Some(bridge);
     }
 
     /// Get the health checker.
@@ -110,6 +119,11 @@ impl ObservabilityState {
     /// Get the event hub.
     pub fn event_hub(&self) -> &EventHub {
         &self.event_hub
+    }
+
+    /// Get the network bridge.
+    pub fn network_bridge(&self) -> Option<&Arc<NetworkEventBridge>> {
+        self.network_bridge.as_ref()
     }
 }
 
@@ -163,6 +177,15 @@ impl ObservabilityServer {
         self
     }
 
+    /// Set the network bridge for P2P messaging.
+    ///
+    /// When a network bridge is set, the WebSocket event endpoint will
+    /// use the P2P-enabled handler that can publish and receive network messages.
+    pub fn with_network_bridge(mut self, bridge: Arc<NetworkEventBridge>) -> Self {
+        self.state.set_network_bridge(bridge);
+        self
+    }
+
     /// Add additional routes to be merged with the observability routes.
     ///
     /// This allows external routers (e.g., REST API routes) to be served
@@ -198,10 +221,21 @@ impl ObservabilityServer {
     /// Note: This method consumes any additional routes that were set.
     /// Calling it multiple times will only include additional routes on the first call.
     pub fn router(&mut self) -> Router {
-        // Create the events API router with EventHub state
-        let events_router = Router::new()
-            .route("/events", get(events_ws_handler))
-            .with_state(self.state.event_hub.clone());
+        // Create the events API router with appropriate state
+        // Use P2P-enabled handler when network bridge is available
+        let events_router = if let Some(ref bridge) = self.state.network_bridge {
+            let ws_state = WebSocketState::with_network_bridge(
+                self.state.event_hub.clone(),
+                bridge.clone(),
+            );
+            Router::new()
+                .route("/events", get(events_ws_handler_with_bridge))
+                .with_state(ws_state)
+        } else {
+            Router::new()
+                .route("/events", get(events_ws_handler))
+                .with_state(self.state.event_hub.clone())
+        };
 
         let mut router = Router::new()
             // Health endpoints
@@ -305,6 +339,16 @@ async fn events_ws_handler(
     State(event_hub): State<EventHub>,
 ) -> impl IntoResponse {
     events_handler(ws, State(event_hub)).await
+}
+
+/// WebSocket events endpoint handler with P2P network bridge.
+///
+/// Accepts WebSocket upgrade requests and delegates to the P2P-enabled events handler.
+async fn events_ws_handler_with_bridge(
+    ws: axum::extract::ws::WebSocketUpgrade,
+    State(ws_state): State<WebSocketState>,
+) -> impl IntoResponse {
+    events_handler_with_bridge(ws, State(ws_state)).await
 }
 
 /// Convert health status to HTTP status code.
