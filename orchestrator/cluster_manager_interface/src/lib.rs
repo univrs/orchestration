@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use orchestrator_shared_types::{Node, NodeId, OrchestrationError, Result};
-use tokio::sync::watch; // For broadcasting cluster changes 
-use downcast_rs::{Downcast, impl_downcast}; // For downcasting trait objects if needed 
+use tokio::sync::broadcast;
+use downcast_rs::{Downcast, impl_downcast};
 
 /// Represents an event related to cluster membership or node status.
 #[derive(Debug, Clone, PartialEq)]
@@ -16,7 +16,8 @@ pub trait ClusterManager: Downcast + Send + Sync {
     async fn initialize(&self) -> Result<()>;
     async fn get_node(&self, node_id: &NodeId) -> Result<Option<Node>>;
     async fn list_nodes(&self) -> Result<Vec<Node>>;
-    async fn subscribe_to_events(&self) -> Result<watch::Receiver<Option<ClusterEvent>>>;
+    /// Subscribe to cluster events. Uses broadcast channel to ensure all events are delivered.
+    async fn subscribe_to_events(&self) -> Result<broadcast::Receiver<ClusterEvent>>;
 
     // Methods for leader election might go here if the manager handles it.
     // async fn is_leader(&self) -> Result<bool>;

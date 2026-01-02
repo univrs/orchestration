@@ -11,11 +11,14 @@ use std::time::Duration;
 use async_trait::async_trait;
 use chitchat::transport::UdpTransport;
 use chitchat::{spawn_chitchat, ChitchatConfig, ChitchatHandle, ChitchatId, FailureDetectorConfig};
-use tokio::sync::{watch, Mutex, RwLock};
+use tokio::sync::{broadcast, Mutex, RwLock};
 use tracing::{debug, error, info, warn};
 
 use cluster_manager_interface::{ClusterEvent, ClusterManager, ClusterManagerError};
 use orchestrator_shared_types::{Node, NodeId, NodeResources, NodeStatus, OrchestrationError, Result, Keypair};
+
+/// Buffer size for the broadcast channel - enough to handle burst of node joins
+const EVENT_CHANNEL_CAPACITY: usize = 64;
 
 /// Key prefix for node metadata in chitchat's key-value store
 const NODE_ADDRESS_KEY: &str = "node:address";
@@ -76,10 +79,8 @@ pub struct ChitchatClusterManager {
     chitchat_handle: Arc<RwLock<Option<ChitchatHandle>>>,
     /// Local cache of nodes for quick lookups.
     nodes_cache: Arc<RwLock<HashMap<NodeId, Node>>>,
-    /// Event broadcaster (wrapped in Arc for Clone).
-    event_tx: Arc<watch::Sender<Option<ClusterEvent>>>,
-    /// Event receiver template.
-    event_rx: watch::Receiver<Option<ClusterEvent>>,
+    /// Event broadcaster - uses broadcast channel to ensure all events are delivered.
+    event_tx: Arc<broadcast::Sender<ClusterEvent>>,
     /// Whether the cluster manager is initialized.
     initialized: Arc<RwLock<bool>>,
     /// This node's info (set on initialization).
@@ -100,14 +101,13 @@ impl std::fmt::Debug for ChitchatClusterManager {
 impl ChitchatClusterManager {
     /// Create a new chitchat cluster manager with the given configuration.
     pub fn new(config: ChitchatClusterConfig) -> Self {
-        let (event_tx, event_rx) = watch::channel(None);
+        let (event_tx, _) = broadcast::channel(EVENT_CHANNEL_CAPACITY);
 
         Self {
             config,
             chitchat_handle: Arc::new(RwLock::new(None)),
             nodes_cache: Arc::new(RwLock::new(HashMap::new())),
             event_tx: Arc::new(event_tx),
-            event_rx,
             initialized: Arc::new(RwLock::new(false)),
             self_node: Arc::new(RwLock::new(None)),
             chitchat_inner: Arc::new(Mutex::new(None)),
@@ -263,7 +263,7 @@ impl ChitchatClusterManager {
     fn start_membership_monitor(
         chitchat_arc: Arc<Mutex<chitchat::Chitchat>>,
         nodes_cache: Arc<RwLock<HashMap<NodeId, Node>>>,
-        event_tx: Arc<watch::Sender<Option<ClusterEvent>>>,
+        event_tx: Arc<broadcast::Sender<ClusterEvent>>,
     ) {
         tokio::spawn(async move {
             // Get the watcher from the inner Chitchat
@@ -301,14 +301,14 @@ impl ChitchatClusterManager {
                 // Compare with cached nodes to detect changes
                 let mut cache = nodes_cache.write().await;
 
-                // Find added nodes
+                // Find added nodes - broadcast sends to ALL subscribers (no lost events)
                 for (node_id, node) in &new_nodes {
                     if !cache.contains_key(node_id) {
                         info!("Node joined cluster: {}", node_id);
-                        let _ = event_tx.send(Some(ClusterEvent::NodeAdded(node.clone())));
+                        let _ = event_tx.send(ClusterEvent::NodeAdded(node.clone()));
                     } else if cache.get(node_id) != Some(node) {
                         info!("Node updated: {}", node_id);
-                        let _ = event_tx.send(Some(ClusterEvent::NodeUpdated(node.clone())));
+                        let _ = event_tx.send(ClusterEvent::NodeUpdated(node.clone()));
                     }
                 }
 
@@ -316,7 +316,7 @@ impl ChitchatClusterManager {
                 for node_id in cache.keys() {
                     if !new_nodes.contains_key(node_id) {
                         info!("Node left cluster: {}", node_id);
-                        let _ = event_tx.send(Some(ClusterEvent::NodeRemoved(*node_id)));
+                        let _ = event_tx.send(ClusterEvent::NodeRemoved(*node_id));
                     }
                 }
 
@@ -462,9 +462,9 @@ impl ClusterManager for ChitchatClusterManager {
         Ok(cache.values().cloned().collect())
     }
 
-    async fn subscribe_to_events(&self) -> Result<watch::Receiver<Option<ClusterEvent>>> {
+    async fn subscribe_to_events(&self) -> Result<broadcast::Receiver<ClusterEvent>> {
         debug!("ChitchatClusterManager: Creating event subscription");
-        Ok(self.event_rx.clone())
+        Ok(self.event_tx.subscribe())
     }
 }
 

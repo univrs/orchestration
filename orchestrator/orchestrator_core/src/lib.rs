@@ -15,7 +15,7 @@ use container_runtime_interface::ContainerRuntime;
 use cluster_manager_interface::{ClusterEvent, ClusterManager};
 use scheduler_interface::{ScheduleDecision, ScheduleRequest, Scheduler};
 use state_store_interface::StateStore;
-use tracing::{error, info, warn, trace};
+use tracing::{error, info, warn};
 
 pub struct Orchestrator {
     state_store: Arc<dyn StateStore>,
@@ -66,32 +66,27 @@ impl Orchestrator {
                         error!("Failed to handle workload update: {:?}", e);
                     }
                 }
-                // Listen for cluster events (node changes)
-                
-                Ok(()) = cluster_events_rx.changed() => {
-                    // create a new scope to ensure watch::Ref is dropperd before awaits
-                    let cloned_event_option: Option<ClusterEvent> = {
-
-                        let event_ref = cluster_events_rx.borrow_and_update();
-                        (*event_ref).clone()
-                    }; // event_ref (the watch::Ref) is dropped here 
-
-
-                    if let Some(owned_event) = cloned_event_option {
-                        info!("Received cluster event: {:?}", owned_event);
-                        // Now we are only working with the `owned event`, which is `CluterEvent` (Send + Clone)
-
-                        if let Err(e) = self.handle_cluster_event(owned_event).await {
-                            error!("Failed to handle cluster event: {:?}", e);
+                // Listen for cluster events (node changes) - uses broadcast channel
+                // Broadcast channel ensures ALL events are received (no lost events)
+                result = cluster_events_rx.recv() => {
+                    match result {
+                        Ok(event) => {
+                            info!("Received cluster event: {:?}", event);
+                            if let Err(e) = self.handle_cluster_event(event).await {
+                                error!("Failed to handle cluster event: {:?}", e);
+                            }
+                            if let Err(e) = self.reconcile_all_workloads().await {
+                                error!("Failed during reconciliation after cluster event: {:?}", e);
+                            }
                         }
-
-                        if let Err(e) = self.reconcile_all_workloads().await {
-                            error!("Failed during reconciliation after cluster event: {:?}", e);
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                            warn!("Cluster event receiver lagged, missed {} events", n);
+                            // Continue processing - we'll catch up on next event
                         }
-
-                   } else {
-
-                        trace!("Cluster event Channerl updated to None or was initialized to None");
+                        Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                            warn!("Cluster event channel closed");
+                            break;
+                        }
                     }
                 }
                 // TODO: Periodic reconciliation loop (e.g., every 30 seconds)
@@ -102,10 +97,6 @@ impl Orchestrator {
                 //        error!("Failed during periodic reconciliation: {:?}", e);
                 //    }
                 // }
-                else => {
-                    warn!("A channel closed or select! branch completed unexpectedly. Orchestrator might be shutting down.");
-                    break;
-                }
             }
         }
         info!("Orchestrator shutting down.");

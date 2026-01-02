@@ -61,12 +61,11 @@ use orchestrator_core::start_orchestrator_service;
 #[cfg(feature = "youki-runtime")]
 use container_runtime::{YoukiCliRuntime, YoukiCliConfig};
 use orchestrator_shared_types::{
-    ContainerId, ContainerConfig, Node, NodeId, NodeResources, NodeStatus,
+    ContainerId, ContainerConfig, Keypair, Node, NodeId, NodeResources, NodeStatus,
     OrchestrationError, Result as OrchResult,
 };
-use scheduler_interface::{Scheduler, SimpleScheduler};
-use state_store_interface::in_memory::InMemoryStateStore;
-use state_store_interface::StateStore;
+use scheduler_interface::SimpleScheduler;
+use state_store_interface::{StateStore, SqliteStateStore};
 
 #[cfg(feature = "mcp")]
 use mcp_server::OrchestratorMcpServer;
@@ -74,6 +73,7 @@ use mcp_server::OrchestratorMcpServer;
 #[cfg(feature = "observability")]
 use observability::{
     EventHub, HealthChecker, MetricsRegistry, ObservabilityConfig, ObservabilityServer,
+    MockPubSubNetwork, NetworkEventBridge, NetworkBridgeConfig,
 };
 
 #[cfg(feature = "rest-api")]
@@ -371,9 +371,14 @@ async fn main() -> Result<()> {
         std::process::exit(1);
     }
 
+    // Generate node keypair for identity
+    let node_keypair = Keypair::generate();
+    let node_id = node_keypair.public_key();
+    info!("Generated node identity: {}", node_id);
+
     // Create node info
     let self_node = Node {
-        id: config.node_id,
+        id: node_id,
         address: config.public_addr.to_string(),
         status: NodeStatus::Ready,
         labels: HashMap::new(),
@@ -391,7 +396,7 @@ async fn main() -> Result<()> {
 
     // Create chitchat cluster manager
     let chitchat_config = ChitchatClusterConfig {
-        node_id: config.node_id.to_string(),
+        node_id: node_id.to_string(),
         listen_addr: config.listen_addr,
         public_addr: config.public_addr,
         seed_nodes: config.seed_nodes.clone(),
@@ -442,12 +447,14 @@ async fn main() -> Result<()> {
     };
 
     // Create concrete stores first (needed for MCP server if enabled)
-    let in_memory_store = InMemoryStateStore::new();
+    let sqlite_store = Arc::new(SqliteStateStore::in_memory()
+        .await
+        .context("Failed to create in-memory SQLite state store")?);
     let simple_scheduler = SimpleScheduler;
 
     // Wrap in Arc for orchestrator service
     let scheduler = Arc::new(simple_scheduler.clone());
-    let state_store: Arc<dyn StateStore> = Arc::new(in_memory_store.clone());
+    let state_store: Arc<dyn StateStore> = sqlite_store.clone();
 
     // Convert to trait object for orchestrator
     let cluster_manager_trait: Arc<dyn ClusterManager> = cluster_manager.clone();
@@ -455,8 +462,8 @@ async fn main() -> Result<()> {
     // Start MCP server over stdio if enabled
     #[cfg(feature = "mcp")]
     if config.mcp_stdio {
-        // Create MCP server with cloned concrete types
-        let mcp_store = in_memory_store.clone();
+        // Create MCP server with cloned concrete types (dereference Arc and clone)
+        let mcp_store = (*sqlite_store).clone();  // Clone the SqliteStateStore
         let mcp_cluster = (*cluster_manager).clone();  // Clone the ChitchatClusterManager
         let mcp_scheduler = simple_scheduler;
 
@@ -494,7 +501,7 @@ async fn main() -> Result<()> {
     #[cfg(feature = "observability")]
     {
         let health_checker = HealthChecker::new(
-            format!("orchestrator-{}", config.node_id),
+            format!("orchestrator-{}", node_id),
             env!("CARGO_PKG_VERSION"),
         );
         health_checker.mark_healthy("cluster_manager").await;
@@ -508,6 +515,21 @@ async fn main() -> Result<()> {
         // Create event hub for WebSocket streaming
         let event_hub = EventHub::default();
         let event_hub_clone = event_hub.clone();
+
+        // Create P2P network bridge for gossipsub messaging
+        let mock_pubsub = Arc::new(MockPubSubNetwork::new(node_id.to_string()));
+        let network_bridge = Arc::new(NetworkEventBridge::new(
+            event_hub.clone(),
+            mock_pubsub,
+            NetworkBridgeConfig::default(),
+        ));
+
+        // Start the network bridge (subscribes to P2P topics)
+        if let Err(e) = network_bridge.start().await {
+            warn!("Failed to start network bridge: {}. P2P messaging will be unavailable.", e);
+        } else {
+            info!("Network bridge started - P2P messaging enabled for gradient/election/credit/septal topics");
+        }
 
         // Build API router if rest-api feature is enabled
         #[cfg(feature = "rest-api")]
@@ -534,6 +556,7 @@ async fn main() -> Result<()> {
         #[cfg(feature = "rest-api")]
         let obs_server = ObservabilityServer::new(obs_config.clone(), health_checker)
             .with_event_hub(event_hub)
+            .with_network_bridge(network_bridge)
             .with_metrics(metrics_registry)
             .await
             .with_additional_routes(api_router);
@@ -541,6 +564,7 @@ async fn main() -> Result<()> {
         #[cfg(not(feature = "rest-api"))]
         let obs_server = ObservabilityServer::new(obs_config.clone(), health_checker)
             .with_event_hub(event_hub)
+            .with_network_bridge(network_bridge)
             .with_metrics(metrics_registry)
             .await;
 
@@ -550,14 +574,17 @@ async fn main() -> Result<()> {
             if let Ok(mut event_rx) = cluster_manager_for_events.subscribe_to_events().await {
                 info!("Event forwarder started - streaming cluster events to WebSocket clients");
                 loop {
-                    if event_rx.changed().await.is_err() {
-                        warn!("Cluster event channel closed");
-                        break;
-                    }
-
-                    let event = event_rx.borrow_and_update().clone();
-                    if let Some(cluster_event) = event {
-                        event_hub_clone.broadcast_cluster_event(&cluster_event).await;
+                    match event_rx.recv().await {
+                        Ok(cluster_event) => {
+                            event_hub_clone.broadcast_cluster_event(&cluster_event).await;
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                            warn!("Event forwarder lagged, missed {} events", n);
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                            warn!("Cluster event channel closed");
+                            break;
+                        }
                     }
                 }
             } else {
@@ -575,14 +602,14 @@ async fn main() -> Result<()> {
         #[cfg(feature = "rest-api")]
         info!(
             api_port = config.api_port,
-            "Combined server started: REST API + WebSocket events + health/metrics at port {}",
+            "Combined server started: REST API + WebSocket events + P2P bridge + health/metrics at port {}",
             config.api_port
         );
 
         #[cfg(not(feature = "rest-api"))]
         info!(
             api_port = config.api_port,
-            "Observability server started with WebSocket event streaming at /api/v1/events"
+            "Observability server started with WebSocket event streaming + P2P bridge at /api/v1/events"
         );
     }
 

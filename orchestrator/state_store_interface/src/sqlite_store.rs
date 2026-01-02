@@ -17,6 +17,7 @@ use crate::StateStore;
 ///
 /// Uses univrs-state SqliteStore for the underlying storage,
 /// providing durable persistence with ACID transactions.
+#[derive(Clone)]
 pub struct SqliteStateStore {
     store: Arc<SqliteStore>,
 }

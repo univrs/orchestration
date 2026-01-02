@@ -12,8 +12,11 @@ use std::collections::HashMap;
 
 use async_trait::async_trait;
 use container_runtime_interface::{ContainerRuntime, CreateContainerOptions, ContainerStatus};
-use cluster_manager_interface::{ClusterManager, ClusterEvent}; // Make sure this is correct path
-use tokio::sync::watch;
+use cluster_manager_interface::{ClusterManager, ClusterEvent};
+use tokio::sync::broadcast;
+
+/// Buffer size for the broadcast channel
+const EVENT_CHANNEL_CAPACITY: usize = 64;
 
 // --- Mock Implementations (simplified) ---
 #[derive(Default, Clone)]
@@ -69,30 +72,26 @@ impl ContainerRuntime for MockRuntime {
     }
 }
 
-// Ensure MockClusterManager is Send + Sync, which it is due to Arc<Mutex<...>> and watch::Sender being Send + Sync
+// MockClusterManager using broadcast channel to ensure all events are delivered
 struct MockClusterManager {
-    event_tx: watch::Sender<Option<ClusterEvent>>,
+    event_tx: Arc<broadcast::Sender<ClusterEvent>>,
     nodes: Arc<tokio::sync::Mutex<HashMap<NodeId, Node>>>,
 }
-// This impl is important for downcast-rs to work with the trait
-// It's implicitly provided by `impl_downcast!(ClusterManager Sync);` in the trait definition file
-// if MockClusterManager is Send + Sync + 'static.
 
 impl MockClusterManager {
-    fn new() -> Self { // Removed receiver from direct return, orchestrator will subscribe
-        let (tx, _rx) = watch::channel(None); // _rx is not used here directly
-        MockClusterManager { 
-            event_tx: tx, 
-            nodes: Arc::new(tokio::sync::Mutex::new(HashMap::new())) 
+    fn new() -> Self {
+        let (tx, _) = broadcast::channel(EVENT_CHANNEL_CAPACITY);
+        MockClusterManager {
+            event_tx: Arc::new(tx),
+            nodes: Arc::new(tokio::sync::Mutex::new(HashMap::new()))
         }
     }
     // This method is specific to MockClusterManager and is what we want to call via downcasting
     async fn add_node(&self, node: Node) {
         self.nodes.lock().await.insert(node.id, node.clone());
-        if self.event_tx.send(Some(ClusterEvent::NodeAdded(node.clone()))).is_err() {
-            tracing::warn!("[MockClusterManager] Failed to send NodeAdded event: receiver dropped for node {}", node.id);
-        } else {
-            tracing::info!("[MockClusterManager] Sent NodeAdded event for node {}", node.id);
+        match self.event_tx.send(ClusterEvent::NodeAdded(node.clone())) {
+            Ok(n) => tracing::info!("[MockClusterManager] Sent NodeAdded event for node {} to {} receivers", node.id, n),
+            Err(_) => tracing::warn!("[MockClusterManager] No receivers for NodeAdded event for node {}", node.id),
         }
     }
 }
@@ -109,7 +108,7 @@ impl ClusterManager for MockClusterManager {
     async fn list_nodes(&self) -> OrchestrationResult<Vec<Node>> {
         Ok(self.nodes.lock().await.values().cloned().collect())
     }
-    async fn subscribe_to_events(&self) -> OrchestrationResult<watch::Receiver<Option<ClusterEvent>>> {
+    async fn subscribe_to_events(&self) -> OrchestrationResult<broadcast::Receiver<ClusterEvent>> {
         Ok(self.event_tx.subscribe())
     }
 }

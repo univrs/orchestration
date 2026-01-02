@@ -7,23 +7,32 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use tokio::sync::{watch, RwLock};
+use tokio::sync::{broadcast, RwLock};
 use tracing::{debug, info};
 
 use cluster_manager_interface::{ClusterEvent, ClusterManager};
 use orchestrator_shared_types::{Node, NodeId, NodeResources, NodeStatus, Result};
 
+/// Buffer size for the broadcast channel
+const EVENT_CHANNEL_CAPACITY: usize = 64;
+
 /// Mock cluster manager that simulates cluster operations in-memory.
-#[derive(Debug)]
 pub struct MockClusterManager {
     /// All nodes by ID
     nodes: Arc<RwLock<HashMap<NodeId, Node>>>,
-    /// Event broadcaster
-    event_tx: watch::Sender<Option<ClusterEvent>>,
-    /// Event receiver template (cloned for subscribers)
-    event_rx: watch::Receiver<Option<ClusterEvent>>,
+    /// Event broadcaster - uses broadcast channel to ensure all events are delivered
+    event_tx: Arc<broadcast::Sender<ClusterEvent>>,
     /// Whether the cluster is initialized
     initialized: Arc<RwLock<bool>>,
+}
+
+impl std::fmt::Debug for MockClusterManager {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MockClusterManager")
+            .field("nodes", &self.nodes)
+            .field("initialized", &self.initialized)
+            .finish()
+    }
 }
 
 impl Default for MockClusterManager {
@@ -35,11 +44,10 @@ impl Default for MockClusterManager {
 impl MockClusterManager {
     /// Create a new mock cluster manager instance.
     pub fn new() -> Self {
-        let (event_tx, event_rx) = watch::channel(None);
+        let (event_tx, _) = broadcast::channel(EVENT_CHANNEL_CAPACITY);
         Self {
             nodes: Arc::new(RwLock::new(HashMap::new())),
-            event_tx,
-            event_rx,
+            event_tx: Arc::new(event_tx),
             initialized: Arc::new(RwLock::new(false)),
         }
     }
@@ -51,8 +59,8 @@ impl MockClusterManager {
 
         self.nodes.write().await.insert(node_id, node.clone());
 
-        // Broadcast the event
-        let _ = self.event_tx.send(Some(ClusterEvent::NodeAdded(node)));
+        // Broadcast the event - all subscribers receive this
+        let _ = self.event_tx.send(ClusterEvent::NodeAdded(node));
 
         Ok(())
     }
@@ -63,7 +71,7 @@ impl MockClusterManager {
 
         if self.nodes.write().await.remove(node_id).is_some() {
             // Broadcast the event
-            let _ = self.event_tx.send(Some(ClusterEvent::NodeRemoved(*node_id)));
+            let _ = self.event_tx.send(ClusterEvent::NodeRemoved(*node_id));
         }
 
         Ok(())
@@ -80,7 +88,7 @@ impl MockClusterManager {
             drop(nodes);
 
             // Broadcast the event
-            let _ = self.event_tx.send(Some(ClusterEvent::NodeUpdated(updated_node)));
+            let _ = self.event_tx.send(ClusterEvent::NodeUpdated(updated_node));
         }
 
         Ok(())
@@ -135,9 +143,9 @@ impl ClusterManager for MockClusterManager {
         Ok(self.nodes.read().await.values().cloned().collect())
     }
 
-    async fn subscribe_to_events(&self) -> Result<watch::Receiver<Option<ClusterEvent>>> {
+    async fn subscribe_to_events(&self) -> Result<broadcast::Receiver<ClusterEvent>> {
         debug!("MockClusterManager: Creating event subscription");
-        Ok(self.event_rx.clone())
+        Ok(self.event_tx.subscribe())
     }
 }
 
@@ -245,17 +253,15 @@ mod tests {
         // Add node
         manager.add_node(node.clone()).await.unwrap();
 
-        // Check for event
-        event_rx.changed().await.unwrap();
-        let event = event_rx.borrow().clone();
-        assert!(matches!(event, Some(ClusterEvent::NodeAdded(_))));
+        // Check for event - broadcast channel receives the actual event
+        let event = event_rx.recv().await.unwrap();
+        assert!(matches!(event, ClusterEvent::NodeAdded(_)));
 
         // Remove node
         manager.remove_node(&node_id).await.unwrap();
 
-        event_rx.changed().await.unwrap();
-        let event = event_rx.borrow().clone();
-        assert!(matches!(event, Some(ClusterEvent::NodeRemoved(_))));
+        let event = event_rx.recv().await.unwrap();
+        assert!(matches!(event, ClusterEvent::NodeRemoved(_)));
     }
 
     #[tokio::test]
