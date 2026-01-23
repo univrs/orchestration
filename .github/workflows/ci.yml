@@ -1,0 +1,290 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'orchestrator/**'
+      - '.github/workflows/ci.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'orchestrator/**'
+      - '.github/workflows/ci.yml'
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  RUSTFLAGS: -D warnings
+
+jobs:
+  # ===========================================================================
+  # Rust Format & Lint
+  # ===========================================================================
+  rust-check:
+    name: Format & Lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: orchestrator
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-action@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Create stub sibling dependencies
+        run: |
+          # Create stub Cargo.toml for univrs-identity
+          mkdir -p ../univrs-identity
+          cat > ../univrs-identity/Cargo.toml << 'EOF'
+          [package]
+          name = "univrs-identity"
+          version = "0.1.0"
+          edition = "2021"
+
+          [lib]
+          path = "src/lib.rs"
+
+          [dependencies]
+          ed25519-dalek = { version = "2", features = ["rand_core"] }
+          rand = "0.8"
+          thiserror = "1"
+          EOF
+
+          mkdir -p ../univrs-identity/src
+          cat > ../univrs-identity/src/lib.rs << 'EOF'
+          use ed25519_dalek::{SigningKey, VerifyingKey, Signature, Signer, Verifier};
+          use rand::rngs::OsRng;
+
+          #[derive(Clone)]
+          pub struct Identity {
+              signing_key: SigningKey,
+          }
+
+          impl Identity {
+              pub fn generate() -> Self {
+                  let mut csprng = OsRng;
+                  Self { signing_key: SigningKey::generate(&mut csprng) }
+              }
+
+              pub fn public_key(&self) -> VerifyingKey {
+                  self.signing_key.verifying_key()
+              }
+
+              pub fn sign(&self, message: &[u8]) -> Signature {
+                  self.signing_key.sign(message)
+              }
+
+              pub fn verify(&self, message: &[u8], signature: &Signature) -> bool {
+                  self.public_key().verify(message, signature).is_ok()
+              }
+          }
+          EOF
+
+          # Create stub Cargo.toml for univrs-state
+          mkdir -p ../univrs-state
+          cat > ../univrs-state/Cargo.toml << 'EOF'
+          [package]
+          name = "univrs-state"
+          version = "0.1.0"
+          edition = "2021"
+
+          [lib]
+          path = "src/lib.rs"
+          EOF
+
+          mkdir -p ../univrs-state/src
+          echo "pub fn placeholder() {}" > ../univrs-state/src/lib.rs
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: orchestrator -> target
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run clippy
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+  # ===========================================================================
+  # Rust Tests
+  # ===========================================================================
+  rust-test:
+    name: Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: orchestrator
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-action@stable
+
+      - name: Create stub sibling dependencies
+        run: |
+          mkdir -p ../univrs-identity/src ../univrs-state/src
+
+          cat > ../univrs-identity/Cargo.toml << 'EOF'
+          [package]
+          name = "univrs-identity"
+          version = "0.1.0"
+          edition = "2021"
+          [lib]
+          path = "src/lib.rs"
+          [dependencies]
+          ed25519-dalek = { version = "2", features = ["rand_core"] }
+          rand = "0.8"
+          thiserror = "1"
+          EOF
+
+          cat > ../univrs-identity/src/lib.rs << 'EOF'
+          use ed25519_dalek::{SigningKey, VerifyingKey, Signature, Signer, Verifier};
+          use rand::rngs::OsRng;
+          #[derive(Clone)]
+          pub struct Identity { signing_key: SigningKey }
+          impl Identity {
+              pub fn generate() -> Self { Self { signing_key: SigningKey::generate(&mut OsRng) } }
+              pub fn public_key(&self) -> VerifyingKey { self.signing_key.verifying_key() }
+              pub fn sign(&self, message: &[u8]) -> Signature { self.signing_key.sign(message) }
+              pub fn verify(&self, message: &[u8], signature: &Signature) -> bool { self.public_key().verify(message, signature).is_ok() }
+          }
+          EOF
+
+          cat > ../univrs-state/Cargo.toml << 'EOF'
+          [package]
+          name = "univrs-state"
+          version = "0.1.0"
+          edition = "2021"
+          [lib]
+          path = "src/lib.rs"
+          EOF
+
+          echo "pub fn placeholder() {}" > ../univrs-state/src/lib.rs
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: orchestrator -> target
+
+      - name: Run tests
+        run: cargo test --workspace --all-features
+
+  # ===========================================================================
+  # Rust Build Release
+  # ===========================================================================
+  rust-build-release:
+    name: Build Release
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: orchestrator
+    needs: [rust-check, rust-test]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-action@stable
+
+      - name: Create stub sibling dependencies
+        run: |
+          mkdir -p ../univrs-identity/src ../univrs-state/src
+
+          cat > ../univrs-identity/Cargo.toml << 'EOF'
+          [package]
+          name = "univrs-identity"
+          version = "0.1.0"
+          edition = "2021"
+          [lib]
+          path = "src/lib.rs"
+          [dependencies]
+          ed25519-dalek = { version = "2", features = ["rand_core"] }
+          rand = "0.8"
+          thiserror = "1"
+          EOF
+
+          cat > ../univrs-identity/src/lib.rs << 'EOF'
+          use ed25519_dalek::{SigningKey, VerifyingKey, Signature, Signer, Verifier};
+          use rand::rngs::OsRng;
+          #[derive(Clone)]
+          pub struct Identity { signing_key: SigningKey }
+          impl Identity {
+              pub fn generate() -> Self { Self { signing_key: SigningKey::generate(&mut OsRng) } }
+              pub fn public_key(&self) -> VerifyingKey { self.signing_key.verifying_key() }
+              pub fn sign(&self, message: &[u8]) -> Signature { self.signing_key.sign(message) }
+              pub fn verify(&self, message: &[u8], signature: &Signature) -> bool { self.public_key().verify(message, signature).is_ok() }
+          }
+          EOF
+
+          cat > ../univrs-state/Cargo.toml << 'EOF'
+          [package]
+          name = "univrs-state"
+          version = "0.1.0"
+          edition = "2021"
+          [lib]
+          path = "src/lib.rs"
+          EOF
+
+          echo "pub fn placeholder() {}" > ../univrs-state/src/lib.rs
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: orchestrator -> target
+
+      - name: Build release binary
+        run: cargo build --release --workspace --features full
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: orchestrator-daemon
+          path: orchestrator/target/release/orchestrator_daemon
+          retention-days: 7
+
+  # ===========================================================================
+  # Docker Build Test
+  # ===========================================================================
+  docker-build:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    needs: [rust-check]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image (test only)
+        uses: docker/build-push-action@v5
+        with:
+          context: ./orchestrator
+          push: false
+          tags: univrs/orchestrator-node:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ===========================================================================
+  # CI Complete
+  # ===========================================================================
+  ci-complete:
+    name: CI Complete
+    runs-on: ubuntu-latest
+    needs: [rust-check, rust-test, rust-build-release, docker-build]
+    if: always()
+    steps:
+      - name: Check all jobs passed
+        run: |
+          if [[ "${{ needs.rust-check.result }}" != "success" ]] || \
+             [[ "${{ needs.rust-test.result }}" != "success" ]] || \
+             [[ "${{ needs.rust-build-release.result }}" != "success" ]] || \
+             [[ "${{ needs.docker-build.result }}" != "success" ]]; then
+            echo "One or more jobs failed"
+            exit 1
+          fi
+          echo "All CI checks passed!"

@@ -1,0 +1,70 @@
+# ==============================================================================
+# Univrs.io Multi-Cloud Production Configuration
+# ==============================================================================
+# Copy this file to terraform.tfvars and fill in your values
+# ==============================================================================
+
+cluster_id  = "univrs-production"
+environment = "production"
+
+# ==============================================================================
+# AWS Configuration
+# ==============================================================================
+# Free tier: t2.micro in us-east-1
+
+aws_enabled      = true
+aws_region       = "us-east-1"
+aws_vpc_id       = "vpc-xxxxxxxxxxxxxxxxx"
+aws_subnet_id    = "subnet-xxxxxxxxxxxxxxxxx"
+aws_ami_id       = "ami-xxxxxxxxxxxxxxxxx"  # Amazon Linux 2023 or Ubuntu 22.04
+aws_ssh_key_name = "your-key-pair-name"
+
+# ==============================================================================
+# Azure Configuration
+# ==============================================================================
+# Free tier: Standard_B1s in eastus
+
+azure_enabled             = true
+azure_resource_group_name = "univrs-production-rg"
+azure_location            = "eastus"
+azure_ssh_public_key      = "ssh-ed25519 AAAA... your-email@example.com"
+
+# ==============================================================================
+# GCP Configuration
+# ==============================================================================
+# Free tier: e2-micro in us-central1
+
+gcp_enabled        = true
+gcp_project        = "your-project-id"
+gcp_region         = "us-central1"
+gcp_zone           = "us-central1-a"
+gcp_ssh_public_key = "ssh-ed25519 AAAA... your-email@example.com"
+
+# ==============================================================================
+# Oracle Cloud Configuration (Bootstrap Node)
+# ==============================================================================
+# Always Free: VM.Standard.A1.Flex (ARM) - 4 OCPU, 24GB RAM total
+
+oracle_enabled             = true
+oracle_compartment_id      = "ocid1.compartment.oc1..xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+oracle_availability_domain = "xxxx:US-ASHBURN-AD-1"
+oracle_subnet_id           = "ocid1.subnet.oc1.iad.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+oracle_ssh_public_key      = "ssh-ed25519 AAAA... your-email@example.com"
+
+# ==============================================================================
+# Docker Images
+# ==============================================================================
+# Multi-arch images that support both x86_64 and ARM64
+
+docker_image_network      = "ghcr.io/univrs/mycelial-node:latest"
+docker_image_orchestrator = "ghcr.io/univrs/orchestrator-node:latest"
+
+# ==============================================================================
+# Admin Access (Optional)
+# ==============================================================================
+# Restrict SSH access to specific IPs for security
+
+admin_cidr_blocks = [
+  # "203.0.113.0/24",  # Your office IP range
+  # "198.51.100.10/32", # Your home IP
+]
