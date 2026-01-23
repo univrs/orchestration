@@ -959,8 +959,8 @@ mod tests {
         async fn initialize(&self) -> orchestrator_shared_types::Result<()> { Ok(()) }
         async fn get_node(&self, _: &orchestrator_shared_types::NodeId) -> orchestrator_shared_types::Result<Option<orchestrator_shared_types::Node>> { Ok(None) }
         async fn list_nodes(&self) -> orchestrator_shared_types::Result<Vec<orchestrator_shared_types::Node>> { Ok(vec![]) }
-        async fn subscribe_to_events(&self) -> orchestrator_shared_types::Result<tokio::sync::watch::Receiver<Option<cluster_manager_interface::ClusterEvent>>> {
-            let (tx, rx) = tokio::sync::watch::channel(None);
+        async fn subscribe_to_events(&self) -> orchestrator_shared_types::Result<tokio::sync::broadcast::Receiver<cluster_manager_interface::ClusterEvent>> {
+            let (tx, rx) = tokio::sync::broadcast::channel(16);
             let _ = tx;
             Ok(rx)
         }

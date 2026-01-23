@@ -22,7 +22,7 @@ mod mock {
     };
     use scheduler_interface::{ScheduleDecision, ScheduleRequest, Scheduler};
     use state_store_interface::StateStore;
-    use tokio::sync::{watch, mpsc};
+    use tokio::sync::{broadcast, mpsc};
     use uuid::Uuid;
     use std::collections::HashMap;
 
@@ -61,8 +61,9 @@ mod mock {
             Ok(self.nodes.clone())
         }
 
-        async fn subscribe_to_events(&self) -> Result<watch::Receiver<Option<ClusterEvent>>> {
-            let (_, rx) = watch::channel(None);
+        async fn subscribe_to_events(&self) -> Result<broadcast::Receiver<ClusterEvent>> {
+            let (tx, rx) = broadcast::channel(16);
+            let _ = tx; // Keep sender alive for the duration
             Ok(rx)
         }
     }

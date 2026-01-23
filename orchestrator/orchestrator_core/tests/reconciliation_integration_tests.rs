@@ -13,7 +13,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use async_trait::async_trait;
-use tokio::sync::{watch, RwLock};
+use tokio::sync::{broadcast, RwLock};
 use tokio::time::Duration;
 use uuid::Uuid;
 
@@ -159,34 +159,34 @@ impl ContainerRuntime for MockContainerRuntime {
 
 /// Mock cluster manager that allows programmatic node events
 struct MockClusterManager {
-    event_tx: watch::Sender<Option<ClusterEvent>>,
+    event_tx: Arc<broadcast::Sender<ClusterEvent>>,
     nodes: Arc<RwLock<HashMap<NodeId, Node>>>,
 }
 
 impl MockClusterManager {
     fn new() -> Self {
-        let (event_tx, _) = watch::channel(None);
+        let (event_tx, _) = broadcast::channel(64);
         Self {
-            event_tx,
+            event_tx: Arc::new(event_tx),
             nodes: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
     async fn add_node(&self, node: Node) {
         self.nodes.write().await.insert(node.id, node.clone());
-        let _ = self.event_tx.send(Some(ClusterEvent::NodeAdded(node)));
+        let _ = self.event_tx.send(ClusterEvent::NodeAdded(node));
     }
 
     #[allow(dead_code)] // Reserved for node removal tests
     async fn remove_node(&self, node_id: NodeId) {
         self.nodes.write().await.remove(&node_id);
-        let _ = self.event_tx.send(Some(ClusterEvent::NodeRemoved(node_id)));
+        let _ = self.event_tx.send(ClusterEvent::NodeRemoved(node_id));
     }
 
     #[allow(dead_code)] // Reserved for node update tests
     async fn update_node(&self, node: Node) {
         self.nodes.write().await.insert(node.id, node.clone());
-        let _ = self.event_tx.send(Some(ClusterEvent::NodeUpdated(node)));
+        let _ = self.event_tx.send(ClusterEvent::NodeUpdated(node));
     }
 }
 
@@ -204,7 +204,7 @@ impl ClusterManager for MockClusterManager {
         Ok(self.nodes.read().await.values().cloned().collect())
     }
 
-    async fn subscribe_to_events(&self) -> OrchResult<watch::Receiver<Option<ClusterEvent>>> {
+    async fn subscribe_to_events(&self) -> OrchResult<broadcast::Receiver<ClusterEvent>> {
         Ok(self.event_tx.subscribe())
     }
 }
