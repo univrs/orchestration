@@ -1,0 +1,115 @@
+#cloud-config
+
+# Univrs.io Node Cloud-Init Configuration for Oracle Cloud (ARM64)
+# This runs on first boot to configure the A1.Flex instance
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - docker.io
+  - jq
+  - curl
+
+runcmd:
+  # Enable and start Docker
+  - systemctl enable docker
+  - systemctl start docker
+  - sleep 5
+
+  # Get public IP from OCI metadata service
+  - |
+    PUBLIC_IP=$(curl -sf -H "Authorization: Bearer Oracle" "http://169.254.169.254/opc/v2/vnics/" | jq -r '.[0].publicIp' 2>/dev/null || curl -sf https://ifconfig.me)
+    echo "Public IP: $PUBLIC_IP"
+    echo "$PUBLIC_IP" > /var/lib/univrs-public-ip
+
+%{ if node_role == "bootstrap" }
+  # Bootstrap node configuration
+  - echo "Configuring as BOOTSTRAP node..."
+  - export BOOTSTRAP_FLAG="--bootstrap"
+  - export CONNECT_FLAG=""
+  - export ORCHESTRATOR_ROLE="bootstrap"
+  - export SEED_NODES=""
+%{ else }
+  # Worker node configuration
+  - echo "Configuring as WORKER node..."
+  - export BOOTSTRAP_FLAG=""
+  - export CONNECT_FLAG="--connect /ip4/${bootstrap_ip}/tcp/9000"
+  - export ORCHESTRATOR_ROLE="worker"
+  - export SEED_NODES="${bootstrap_ip}:7280"
+%{ endif }
+
+  # Pull Docker images (ARM64 multi-arch)
+  - docker pull ${docker_image_network}
+  - docker pull ${docker_image_orchestrator}
+
+  # Stop and remove existing containers
+  - docker stop univrs-network univrs-orchestrator 2>/dev/null || true
+  - docker rm univrs-network univrs-orchestrator 2>/dev/null || true
+
+  # Run univrs-network (ARM64 compatible)
+  - |
+    PUBLIC_IP=$(cat /var/lib/univrs-public-ip)
+    docker run -d \
+      --name univrs-network \
+      --restart unless-stopped \
+      -p 8080:8080 \
+      -p 9000:9000 \
+      -p 9001:9001/udp \
+      -v univrs-network-data:/app/data \
+      -e RUST_LOG=info \
+      ${docker_image_network} \
+%{ if node_role == "bootstrap" }
+      --bootstrap \
+%{ else }
+      --connect /ip4/${bootstrap_ip}/tcp/9000 \
+%{ endif }
+      --name "${node_name}" \
+      --port 9000 \
+      --http-port 8080
+
+  - sleep 10
+
+  # Run univrs-orchestration
+  - |
+    PUBLIC_IP=$(cat /var/lib/univrs-public-ip)
+    docker run -d \
+      --name univrs-orchestrator \
+      --restart unless-stopped \
+      -p 7280:7280/udp \
+      -p 9090:9090 \
+      -v univrs-orchestrator-data:/var/lib/orchestrator \
+      -e NODE_ROLE=${node_role} \
+      -e LISTEN_ADDR=0.0.0.0:7280 \
+      -e PUBLIC_ADDR=$PUBLIC_IP:7280 \
+%{ if node_role == "bootstrap" }
+      -e SEED_NODES="" \
+%{ else }
+      -e SEED_NODES="${bootstrap_ip}:7280" \
+%{ endif }
+      -e CLUSTER_ID="${cluster_id}" \
+      -e API_PORT=9090 \
+      -e LOG_LEVEL=info \
+      -e LOG_JSON=true \
+      ${docker_image_orchestrator}
+
+  - sleep 15
+
+  # Health check
+  - |
+    echo "Running health checks..."
+    curl -sf http://localhost:8080/health && echo "Network: OK" || echo "Network: FAILED"
+    curl -sf http://localhost:9090/health && echo "Orchestrator: OK" || echo "Orchestrator: FAILED"
+    echo "Bootstrap completed at $(date)" >> /var/log/univrs-bootstrap.log
+
+  # Oracle-specific: Open firewall ports (iptables rules, cloud init sometimes resets)
+  - iptables -I INPUT -p tcp --dport 22 -j ACCEPT
+  - iptables -I INPUT -p tcp --dport 80 -j ACCEPT
+  - iptables -I INPUT -p tcp --dport 443 -j ACCEPT
+  - iptables -I INPUT -p tcp --dport 8080 -j ACCEPT
+  - iptables -I INPUT -p tcp --dport 9000:9001 -j ACCEPT
+  - iptables -I INPUT -p udp --dport 9000:9001 -j ACCEPT
+  - iptables -I INPUT -p udp --dport 7280 -j ACCEPT
+  - iptables -I INPUT -p tcp --dport 9090 -j ACCEPT
+
+final_message: "Univrs.io ARM64 node bootstrap complete after $UPTIME seconds"

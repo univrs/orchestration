@@ -1,0 +1,103 @@
+#cloud-config
+
+# Univrs.io Node Cloud-Init Configuration
+# This runs on first boot to configure the Azure VM
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - docker.io
+  - jq
+  - curl
+
+runcmd:
+  # Enable and start Docker
+  - systemctl enable docker
+  - systemctl start docker
+  - sleep 5
+
+  # Get public IP
+  - |
+    PUBLIC_IP=$(curl -sf -H Metadata:true "http://169.254.169.254/metadata/instance/network/interface/0/ipv4/ipAddress/0/publicIpAddress?api-version=2021-02-01&format=text" || curl -sf https://ifconfig.me)
+    echo "Public IP: $PUBLIC_IP"
+
+%{ if node_role == "bootstrap" }
+  # Bootstrap node configuration
+  - echo "Configuring as BOOTSTRAP node..."
+  - BOOTSTRAP_FLAG="--bootstrap"
+  - CONNECT_FLAG=""
+  - ORCHESTRATOR_ROLE="bootstrap"
+  - SEED_NODES=""
+%{ else }
+  # Worker node configuration
+  - echo "Configuring as WORKER node..."
+  - BOOTSTRAP_FLAG=""
+  - CONNECT_FLAG="--connect /ip4/${bootstrap_ip}/tcp/9000"
+  - ORCHESTRATOR_ROLE="worker"
+  - SEED_NODES="${bootstrap_ip}:7280"
+%{ endif }
+
+  # Pull Docker images
+  - docker pull ${docker_image_network}
+  - docker pull ${docker_image_orchestrator}
+
+  # Stop and remove existing containers
+  - docker stop univrs-network univrs-orchestrator 2>/dev/null || true
+  - docker rm univrs-network univrs-orchestrator 2>/dev/null || true
+
+  # Run univrs-network
+  - |
+    docker run -d \
+      --name univrs-network \
+      --restart unless-stopped \
+      -p 8080:8080 \
+      -p 9000:9000 \
+      -p 9001:9001/udp \
+      -v univrs-network-data:/app/data \
+      -e RUST_LOG=info \
+      ${docker_image_network} \
+%{ if node_role == "bootstrap" }
+      --bootstrap \
+%{ else }
+      --connect /ip4/${bootstrap_ip}/tcp/9000 \
+%{ endif }
+      --name "${node_name}" \
+      --port 9000 \
+      --http-port 8080
+
+  - sleep 10
+
+  # Run univrs-orchestration
+  - |
+    PUBLIC_IP=$(curl -sf https://ifconfig.me || echo "127.0.0.1")
+    docker run -d \
+      --name univrs-orchestrator \
+      --restart unless-stopped \
+      -p 7280:7280/udp \
+      -p 9090:9090 \
+      -v univrs-orchestrator-data:/var/lib/orchestrator \
+      -e NODE_ROLE=${node_role} \
+      -e LISTEN_ADDR=0.0.0.0:7280 \
+      -e PUBLIC_ADDR=$PUBLIC_IP:7280 \
+%{ if node_role == "bootstrap" }
+      -e SEED_NODES="" \
+%{ else }
+      -e SEED_NODES="${bootstrap_ip}:7280" \
+%{ endif }
+      -e CLUSTER_ID="${cluster_id}" \
+      -e API_PORT=9090 \
+      -e LOG_LEVEL=info \
+      -e LOG_JSON=true \
+      ${docker_image_orchestrator}
+
+  - sleep 15
+
+  # Health check
+  - |
+    echo "Running health checks..."
+    curl -sf http://localhost:8080/health && echo "Network: OK" || echo "Network: FAILED"
+    curl -sf http://localhost:9090/health && echo "Orchestrator: OK" || echo "Orchestrator: FAILED"
+    echo "Bootstrap completed at $(date)" >> /var/log/univrs-bootstrap.log
+
+final_message: "Univrs.io node bootstrap complete after $UPTIME seconds"
