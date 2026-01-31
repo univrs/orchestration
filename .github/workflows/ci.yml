@@ -58,6 +58,7 @@ jobs:
           rand = "0.8"
           serde = { version = "1", features = ["derive"] }
           hex = "0.4"
+          bs58 = "0.5"
           EOF
 
           cat > ../../univrs-identity/src/lib.rs << 'EOF'
@@ -78,6 +79,9 @@ jobs:
               }
               pub fn as_bytes(&self) -> &[u8; 32] {
                   self.0.as_bytes()
+              }
+              pub fn to_base58(&self) -> String {
+                  bs58::encode(self.0.as_bytes()).into_string()
               }
           }
 
@@ -109,8 +113,53 @@ jobs:
           edition = "2021"
           [lib]
           path = "src/lib.rs"
+          [dependencies]
+          async-trait = "0.1"
+          serde = { version = "1", features = ["derive"] }
+          thiserror = "1"
           EOF
-          echo "pub fn placeholder() {}" > ../../univrs-state/src/lib.rs
+          cat > ../../univrs-state/src/lib.rs << 'EOF'
+          use serde::{de::DeserializeOwned, Serialize};
+          use std::path::Path;
+          use thiserror::Error;
+
+          #[derive(Debug, Error)]
+          pub enum StateError {
+              #[error("Storage error: {0}")]
+              Storage(String),
+          }
+
+          #[async_trait::async_trait]
+          pub trait StateStore: Send + Sync {
+              async fn list(&self, prefix: &str) -> Result<Vec<String>, StateError>;
+              async fn get(&self, key: &str) -> Result<Option<Vec<u8>>, StateError>;
+              async fn set(&self, key: &str, value: &[u8]) -> Result<(), StateError>;
+              async fn delete(&self, key: &str) -> Result<(), StateError>;
+              async fn get_json<T: DeserializeOwned>(&self, key: &str) -> Result<Option<T>, StateError>;
+              async fn set_json<T: Serialize + Sync>(&self, key: &str, value: &T) -> Result<(), StateError>;
+          }
+
+          pub struct SqliteStore;
+
+          impl SqliteStore {
+              pub async fn open(_path: impl AsRef<Path>) -> Result<Self, StateError> {
+                  Ok(SqliteStore)
+              }
+              pub async fn in_memory() -> Result<Self, StateError> {
+                  Ok(SqliteStore)
+              }
+          }
+
+          #[async_trait::async_trait]
+          impl StateStore for SqliteStore {
+              async fn list(&self, _prefix: &str) -> Result<Vec<String>, StateError> { Ok(vec![]) }
+              async fn get(&self, _key: &str) -> Result<Option<Vec<u8>>, StateError> { Ok(None) }
+              async fn set(&self, _key: &str, _value: &[u8]) -> Result<(), StateError> { Ok(()) }
+              async fn delete(&self, _key: &str) -> Result<(), StateError> { Ok(()) }
+              async fn get_json<T: DeserializeOwned>(&self, _key: &str) -> Result<Option<T>, StateError> { Ok(None) }
+              async fn set_json<T: Serialize + Sync>(&self, _key: &str, _value: &T) -> Result<(), StateError> { Ok(()) }
+          }
+          EOF
 
       - name: Cache Cargo
         uses: Swatinem/rust-cache@v2
@@ -158,6 +207,7 @@ jobs:
           rand = "0.8"
           serde = { version = "1", features = ["derive"] }
           hex = "0.4"
+          bs58 = "0.5"
           EOF
           cat > ../../univrs-identity/src/lib.rs << 'EOF'
           pub use ed25519_dalek::Signature;
@@ -177,6 +227,9 @@ jobs:
               }
               pub fn as_bytes(&self) -> &[u8; 32] {
                   self.0.as_bytes()
+              }
+              pub fn to_base58(&self) -> String {
+                  bs58::encode(self.0.as_bytes()).into_string()
               }
           }
 
@@ -205,8 +258,53 @@ jobs:
           edition = "2021"
           [lib]
           path = "src/lib.rs"
+          [dependencies]
+          async-trait = "0.1"
+          serde = { version = "1", features = ["derive"] }
+          thiserror = "1"
           EOF
-          echo "pub fn placeholder() {}" > ../../univrs-state/src/lib.rs
+          cat > ../../univrs-state/src/lib.rs << 'EOF'
+          use serde::{de::DeserializeOwned, Serialize};
+          use std::path::Path;
+          use thiserror::Error;
+
+          #[derive(Debug, Error)]
+          pub enum StateError {
+              #[error("Storage error: {0}")]
+              Storage(String),
+          }
+
+          #[async_trait::async_trait]
+          pub trait StateStore: Send + Sync {
+              async fn list(&self, prefix: &str) -> Result<Vec<String>, StateError>;
+              async fn get(&self, key: &str) -> Result<Option<Vec<u8>>, StateError>;
+              async fn set(&self, key: &str, value: &[u8]) -> Result<(), StateError>;
+              async fn delete(&self, key: &str) -> Result<(), StateError>;
+              async fn get_json<T: DeserializeOwned>(&self, key: &str) -> Result<Option<T>, StateError>;
+              async fn set_json<T: Serialize + Sync>(&self, key: &str, value: &T) -> Result<(), StateError>;
+          }
+
+          pub struct SqliteStore;
+
+          impl SqliteStore {
+              pub async fn open(_path: impl AsRef<Path>) -> Result<Self, StateError> {
+                  Ok(SqliteStore)
+              }
+              pub async fn in_memory() -> Result<Self, StateError> {
+                  Ok(SqliteStore)
+              }
+          }
+
+          #[async_trait::async_trait]
+          impl StateStore for SqliteStore {
+              async fn list(&self, _prefix: &str) -> Result<Vec<String>, StateError> { Ok(vec![]) }
+              async fn get(&self, _key: &str) -> Result<Option<Vec<u8>>, StateError> { Ok(None) }
+              async fn set(&self, _key: &str, _value: &[u8]) -> Result<(), StateError> { Ok(()) }
+              async fn delete(&self, _key: &str) -> Result<(), StateError> { Ok(()) }
+              async fn get_json<T: DeserializeOwned>(&self, _key: &str) -> Result<Option<T>, StateError> { Ok(None) }
+              async fn set_json<T: Serialize + Sync>(&self, _key: &str, _value: &T) -> Result<(), StateError> { Ok(()) }
+          }
+          EOF
 
       - name: Cache Cargo
         uses: Swatinem/rust-cache@v2
@@ -252,6 +350,7 @@ jobs:
           rand = "0.8"
           serde = { version = "1", features = ["derive"] }
           hex = "0.4"
+          bs58 = "0.5"
           EOF
           cat > ../../univrs-identity/src/lib.rs << 'EOF'
           pub use ed25519_dalek::Signature;
@@ -271,6 +370,9 @@ jobs:
               }
               pub fn as_bytes(&self) -> &[u8; 32] {
                   self.0.as_bytes()
+              }
+              pub fn to_base58(&self) -> String {
+                  bs58::encode(self.0.as_bytes()).into_string()
               }
           }
 
@@ -299,8 +401,53 @@ jobs:
           edition = "2021"
           [lib]
           path = "src/lib.rs"
+          [dependencies]
+          async-trait = "0.1"
+          serde = { version = "1", features = ["derive"] }
+          thiserror = "1"
           EOF
-          echo "pub fn placeholder() {}" > ../../univrs-state/src/lib.rs
+          cat > ../../univrs-state/src/lib.rs << 'EOF'
+          use serde::{de::DeserializeOwned, Serialize};
+          use std::path::Path;
+          use thiserror::Error;
+
+          #[derive(Debug, Error)]
+          pub enum StateError {
+              #[error("Storage error: {0}")]
+              Storage(String),
+          }
+
+          #[async_trait::async_trait]
+          pub trait StateStore: Send + Sync {
+              async fn list(&self, prefix: &str) -> Result<Vec<String>, StateError>;
+              async fn get(&self, key: &str) -> Result<Option<Vec<u8>>, StateError>;
+              async fn set(&self, key: &str, value: &[u8]) -> Result<(), StateError>;
+              async fn delete(&self, key: &str) -> Result<(), StateError>;
+              async fn get_json<T: DeserializeOwned>(&self, key: &str) -> Result<Option<T>, StateError>;
+              async fn set_json<T: Serialize + Sync>(&self, key: &str, value: &T) -> Result<(), StateError>;
+          }
+
+          pub struct SqliteStore;
+
+          impl SqliteStore {
+              pub async fn open(_path: impl AsRef<Path>) -> Result<Self, StateError> {
+                  Ok(SqliteStore)
+              }
+              pub async fn in_memory() -> Result<Self, StateError> {
+                  Ok(SqliteStore)
+              }
+          }
+
+          #[async_trait::async_trait]
+          impl StateStore for SqliteStore {
+              async fn list(&self, _prefix: &str) -> Result<Vec<String>, StateError> { Ok(vec![]) }
+              async fn get(&self, _key: &str) -> Result<Option<Vec<u8>>, StateError> { Ok(None) }
+              async fn set(&self, _key: &str, _value: &[u8]) -> Result<(), StateError> { Ok(()) }
+              async fn delete(&self, _key: &str) -> Result<(), StateError> { Ok(()) }
+              async fn get_json<T: DeserializeOwned>(&self, _key: &str) -> Result<Option<T>, StateError> { Ok(None) }
+              async fn set_json<T: Serialize + Sync>(&self, _key: &str, _value: &T) -> Result<(), StateError> { Ok(()) }
+          }
+          EOF
 
       - name: Cache Cargo
         uses: Swatinem/rust-cache@v2
@@ -342,6 +489,7 @@ jobs:
           rand = "0.8"
           serde = { version = "1", features = ["derive"] }
           hex = "0.4"
+          bs58 = "0.5"
           EOF
           cat > univrs-identity/src/lib.rs << 'EOF'
           pub use ed25519_dalek::Signature;
@@ -361,6 +509,9 @@ jobs:
               }
               pub fn as_bytes(&self) -> &[u8; 32] {
                   self.0.as_bytes()
+              }
+              pub fn to_base58(&self) -> String {
+                  bs58::encode(self.0.as_bytes()).into_string()
               }
           }
 
@@ -389,8 +540,53 @@ jobs:
           edition = "2021"
           [lib]
           path = "src/lib.rs"
+          [dependencies]
+          async-trait = "0.1"
+          serde = { version = "1", features = ["derive"] }
+          thiserror = "1"
           EOF
-          echo "pub fn placeholder() {}" > univrs-state/src/lib.rs
+          cat > univrs-state/src/lib.rs << 'EOF'
+          use serde::{de::DeserializeOwned, Serialize};
+          use std::path::Path;
+          use thiserror::Error;
+
+          #[derive(Debug, Error)]
+          pub enum StateError {
+              #[error("Storage error: {0}")]
+              Storage(String),
+          }
+
+          #[async_trait::async_trait]
+          pub trait StateStore: Send + Sync {
+              async fn list(&self, prefix: &str) -> Result<Vec<String>, StateError>;
+              async fn get(&self, key: &str) -> Result<Option<Vec<u8>>, StateError>;
+              async fn set(&self, key: &str, value: &[u8]) -> Result<(), StateError>;
+              async fn delete(&self, key: &str) -> Result<(), StateError>;
+              async fn get_json<T: DeserializeOwned>(&self, key: &str) -> Result<Option<T>, StateError>;
+              async fn set_json<T: Serialize + Sync>(&self, key: &str, value: &T) -> Result<(), StateError>;
+          }
+
+          pub struct SqliteStore;
+
+          impl SqliteStore {
+              pub async fn open(_path: impl AsRef<Path>) -> Result<Self, StateError> {
+                  Ok(SqliteStore)
+              }
+              pub async fn in_memory() -> Result<Self, StateError> {
+                  Ok(SqliteStore)
+              }
+          }
+
+          #[async_trait::async_trait]
+          impl StateStore for SqliteStore {
+              async fn list(&self, _prefix: &str) -> Result<Vec<String>, StateError> { Ok(vec![]) }
+              async fn get(&self, _key: &str) -> Result<Option<Vec<u8>>, StateError> { Ok(None) }
+              async fn set(&self, _key: &str, _value: &[u8]) -> Result<(), StateError> { Ok(()) }
+              async fn delete(&self, _key: &str) -> Result<(), StateError> { Ok(()) }
+              async fn get_json<T: DeserializeOwned>(&self, _key: &str) -> Result<Option<T>, StateError> { Ok(None) }
+              async fn set_json<T: Serialize + Sync>(&self, _key: &str, _value: &T) -> Result<(), StateError> { Ok(()) }
+          }
+          EOF
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
