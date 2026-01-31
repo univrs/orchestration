@@ -81,10 +81,26 @@ jobs:
           EOF
           cat > univrs-identity/src/lib.rs << 'EOF'
           pub use ed25519_dalek::Signature;
-          pub use ed25519_dalek::SigningKey as Keypair;
           use serde::{Deserialize, Serialize};
           use std::fmt;
           use std::str::FromStr;
+
+          #[derive(Clone)]
+          pub struct Keypair(ed25519_dalek::SigningKey);
+
+          impl Keypair {
+              pub fn generate() -> Self {
+                  use rand::rngs::OsRng;
+                  Keypair(ed25519_dalek::SigningKey::generate(&mut OsRng))
+              }
+              pub fn public_key(&self) -> PublicKey {
+                  PublicKey(self.0.verifying_key())
+              }
+              pub fn sign(&self, message: &[u8]) -> Signature {
+                  use ed25519_dalek::Signer;
+                  self.0.sign(message)
+              }
+          }
 
           #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
           pub struct PublicKey(ed25519_dalek::VerifyingKey);
@@ -147,7 +163,7 @@ jobs:
 
           impl From<&Keypair> for PublicKey {
               fn from(keypair: &Keypair) -> Self {
-                  PublicKey(keypair.verifying_key())
+                  keypair.public_key()
               }
           }
           EOF

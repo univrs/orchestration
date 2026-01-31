@@ -59,7 +59,7 @@ impl ContainerRuntime for MockRuntime {
 
         let mut nodes = self.initialized_nodes.write().await;
         if !nodes.contains(&node_id) {
-            nodes.push(node_id);
+            nodes.push(node_id.clone());
         }
 
         // Initialize container list for this node
@@ -85,7 +85,7 @@ impl ContainerRuntime for MockRuntime {
         let container = MockContainer {
             id: container_id.clone(),
             _config: config.clone(),
-            node_id: options.node_id,
+            node_id: options.node_id.clone(),
             state: "running".to_string(),
             exit_code: None,
         };
@@ -100,7 +100,7 @@ impl ContainerRuntime for MockRuntime {
         self.containers_by_node
             .write()
             .await
-            .entry(options.node_id)
+            .entry(options.node_id.clone())
             .or_insert_with(Vec::new)
             .push(container_id.clone());
 

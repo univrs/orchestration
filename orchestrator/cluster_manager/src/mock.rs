@@ -54,7 +54,7 @@ impl MockClusterManager {
 
     /// Add a node to the cluster (for testing).
     pub async fn add_node(&self, node: Node) -> Result<()> {
-        let node_id = node.id;
+        let node_id = node.id.clone();
         info!("MockClusterManager: Adding node {}", node_id);
 
         self.nodes.write().await.insert(node_id, node.clone());
@@ -71,7 +71,7 @@ impl MockClusterManager {
 
         if self.nodes.write().await.remove(node_id).is_some() {
             // Broadcast the event
-            let _ = self.event_tx.send(ClusterEvent::NodeRemoved(*node_id));
+            let _ = self.event_tx.send(ClusterEvent::NodeRemoved(node_id.clone()));
         }
 
         Ok(())

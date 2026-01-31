@@ -382,7 +382,7 @@ impl ContainerRuntime for YoukiRuntime {
         // Track the container
         let container_info = ContainerInfo {
             _id: container_id.clone(),
-            node_id: options.node_id,
+            node_id: options.node_id.clone(),
             bundle_path,
             state: "running".to_string(),
         };
@@ -395,7 +395,7 @@ impl ContainerRuntime for YoukiRuntime {
         self.containers_by_node
             .write()
             .await
-            .entry(options.node_id)
+            .entry(options.node_id.clone())
             .or_insert_with(Vec::new)
             .push(container_id.clone());
 
@@ -452,7 +452,7 @@ impl ContainerRuntime for YoukiRuntime {
 
         let container_state_path = self.container_state_path(&info.node_id, container_id);
         let bundle_path = info.bundle_path.clone();
-        let node_id = info.node_id;
+        let node_id = info.node_id.clone();
 
         drop(containers);
 
