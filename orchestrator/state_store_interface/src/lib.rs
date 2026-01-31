@@ -85,7 +85,10 @@ pub trait StateStore: Send + Sync {
     async fn get_instance(&self, instance_id: &str) -> Result<Option<WorkloadInstance>>;
 
     /// List all instances for a specific workload
-    async fn list_instances_for_workload(&self, workload_id: &WorkloadId) -> Result<Vec<WorkloadInstance>>;
+    async fn list_instances_for_workload(
+        &self,
+        workload_id: &WorkloadId,
+    ) -> Result<Vec<WorkloadInstance>>;
 
     /// List all instances across all workloads
     async fn list_all_instances(&self) -> Result<Vec<WorkloadInstance>>;
@@ -113,12 +116,16 @@ pub trait StateStore: Send + Sync {
 
     /// Subscribe to node changes (optional)
     async fn watch_nodes(&self) -> Result<tokio::sync::mpsc::Receiver<Node>> {
-        Err(OrchestrationError::NotImplemented("watch_nodes not implemented".to_string()))
+        Err(OrchestrationError::NotImplemented(
+            "watch_nodes not implemented".to_string(),
+        ))
     }
 
     /// Subscribe to workload changes (optional)
     async fn watch_workloads(&self) -> Result<tokio::sync::mpsc::Receiver<WorkloadDefinition>> {
-        Err(OrchestrationError::NotImplemented("watch_workloads not implemented".to_string()))
+        Err(OrchestrationError::NotImplemented(
+            "watch_workloads not implemented".to_string(),
+        ))
     }
 }
 
@@ -137,36 +144,34 @@ pub mod etcd_store;
 pub use sqlite_store::SqliteStateStore;
 
 // Helper function to create appropriate store based on config (sync version for non-SQLite)
+#[allow(clippy::result_large_err)]
 pub fn create_state_store(config: StateStoreConfig) -> Result<Arc<dyn StateStore>> {
     match config {
         #[cfg(feature = "sqlite")]
-        StateStoreConfig::Sqlite { .. } => {
-            Err(OrchestrationError::ConfigError(
-                "SQLite store requires async initialization. Use create_state_store_async instead.".to_string()
-            ))
-        }
+        StateStoreConfig::Sqlite { .. } => Err(OrchestrationError::ConfigError(
+            "SQLite store requires async initialization. Use create_state_store_async instead."
+                .to_string(),
+        )),
 
         #[cfg(feature = "in-memory")]
-        StateStoreConfig::InMemory => {
-            Ok(Arc::new(in_memory::InMemoryStateStore::new()))
-        }
+        StateStoreConfig::InMemory => Ok(Arc::new(in_memory::InMemoryStateStore::new())),
 
         #[cfg(feature = "etcd")]
-        StateStoreConfig::Etcd { endpoints } => {
-            // Will be implemented in etcd_store module
-            etcd_store::EtcdStateStore::new(endpoints)
-                .map(|store| Arc::new(store) as Arc<dyn StateStore>)
-        }
+        StateStoreConfig::Etcd { .. } => Err(OrchestrationError::ConfigError(
+            "Etcd store requires async initialization. Use create_state_store_async instead."
+                .to_string(),
+        )),
 
         #[allow(unreachable_patterns)]
         _ => Err(OrchestrationError::ConfigError(
-            "State store configuration not supported with current features".to_string()
+            "State store configuration not supported with current features".to_string(),
         )),
     }
 }
 
 /// Async helper function to create appropriate store based on config
 /// Required for SQLite backend which needs async initialization
+#[allow(clippy::result_large_err)]
 pub async fn create_state_store_async(config: StateStoreConfig) -> Result<Arc<dyn StateStore>> {
     match config {
         #[cfg(feature = "sqlite")]
@@ -176,19 +181,16 @@ pub async fn create_state_store_async(config: StateStoreConfig) -> Result<Arc<dy
         }
 
         #[cfg(feature = "in-memory")]
-        StateStoreConfig::InMemory => {
-            Ok(Arc::new(in_memory::InMemoryStateStore::new()))
-        }
+        StateStoreConfig::InMemory => Ok(Arc::new(in_memory::InMemoryStateStore::new())),
 
         #[cfg(feature = "etcd")]
-        StateStoreConfig::Etcd { endpoints } => {
-            etcd_store::EtcdStateStore::new(endpoints)
-                .map(|store| Arc::new(store) as Arc<dyn StateStore>)
-        }
+        StateStoreConfig::Etcd { endpoints } => etcd_store::EtcdStateStore::new(endpoints)
+            .await
+            .map(|store| Arc::new(store) as Arc<dyn StateStore>),
 
         #[allow(unreachable_patterns)]
         _ => Err(OrchestrationError::ConfigError(
-            "State store configuration not supported with current features".to_string()
+            "State store configuration not supported with current features".to_string(),
         )),
     }
 }
@@ -208,7 +210,5 @@ pub enum StateStoreConfig {
     InMemory,
 
     #[cfg(feature = "etcd")]
-    Etcd {
-        endpoints: Vec<String>,
-    },
+    Etcd { endpoints: Vec<String> },
 }

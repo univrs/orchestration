@@ -8,7 +8,7 @@ use std::path::Path;
 
 use base64::prelude::*;
 use chrono::{DateTime, Utc};
-use ed25519_dalek::{SigningKey, VerifyingKey, Signature, Signer, Verifier};
+use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
 
@@ -140,14 +140,16 @@ impl Identity {
 
     /// Verify a signature against this identity's public key.
     pub fn verify(&self, message: &[u8], signature: &Signature) -> bool {
-        self.signing_key.verifying_key().verify(message, signature).is_ok()
+        self.signing_key
+            .verifying_key()
+            .verify(message, signature)
+            .is_ok()
     }
 
     /// Verify signature bytes against this identity's public key.
     pub fn verify_bytes(&self, message: &[u8], signature_bytes: &[u8; 64]) -> bool {
-        match Signature::from_bytes(signature_bytes) {
-            sig => self.verify(message, &sig),
-        }
+        let sig = Signature::from_bytes(signature_bytes);
+        self.verify(message, &sig)
     }
 
     /// Export identity metadata as TOML-serializable struct.
@@ -221,9 +223,9 @@ impl IdentityMetadata {
             return Err(ConfigError::InvalidKey("Invalid public key length".into()));
         }
 
-        let pub_array: [u8; 32] = pub_bytes.try_into().map_err(|_| {
-            ConfigError::InvalidKey("Failed to convert public key bytes".into())
-        })?;
+        let pub_array: [u8; 32] = pub_bytes
+            .try_into()
+            .map_err(|_| ConfigError::InvalidKey("Failed to convert public key bytes".into()))?;
 
         let verifying_key = VerifyingKey::from_bytes(&pub_array)
             .map_err(|e| ConfigError::InvalidKey(format!("Invalid public key: {}", e)))?;

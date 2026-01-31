@@ -23,10 +23,19 @@ pub fn build_router(state: ApiState) -> Router {
         .route("/:workload_id", get(handlers::get_workload))
         .route("/:workload_id", put(handlers::update_workload))
         .route("/:workload_id", delete(handlers::delete_workload))
-        .route("/:workload_id/instances", get(handlers::list_workload_instances))
+        .route(
+            "/:workload_id/instances",
+            get(handlers::list_workload_instances),
+        )
         .route("/:workload_id/logs", get(handlers::get_workload_logs))
-        .route("/:workload_id/logs/stream", get(handlers::stream_workload_logs))
-        .route("/:workload_id/instances/:instance_id/logs", get(handlers::get_instance_logs));
+        .route(
+            "/:workload_id/logs/stream",
+            get(handlers::stream_workload_logs),
+        )
+        .route(
+            "/:workload_id/instances/:instance_id/logs",
+            get(handlers::get_instance_logs),
+        );
 
     // Node routes
     let node_routes = Router::new()
@@ -34,8 +43,7 @@ pub fn build_router(state: ApiState) -> Router {
         .route("/:node_id", get(handlers::get_node));
 
     // Cluster routes
-    let cluster_routes = Router::new()
-        .route("/status", get(handlers::get_cluster_status));
+    let cluster_routes = Router::new().route("/status", get(handlers::get_cluster_status));
 
     // Combine all v1 API routes
     let api_v1 = Router::new()

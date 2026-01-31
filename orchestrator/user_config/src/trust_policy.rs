@@ -166,7 +166,12 @@ impl TrustPolicy {
             return true;
         }
 
-        if (path.starts_with("~/") || path.starts_with(&dirs::home_dir().map(|p| p.to_string_lossy().to_string()).unwrap_or_default()))
+        if (path.starts_with("~/")
+            || path.starts_with(
+                &dirs::home_dir()
+                    .map(|p| p.to_string_lossy().to_string())
+                    .unwrap_or_default(),
+            ))
             && self.filesystem.allow_home_access
         {
             return true;
@@ -254,12 +259,12 @@ impl TrustPolicy {
             return value.contains(middle);
         }
 
-        if pattern.starts_with('*') {
-            return value.ends_with(&pattern[1..]);
+        if let Some(stripped) = pattern.strip_prefix('*') {
+            return value.ends_with(stripped);
         }
 
-        if pattern.ends_with('*') {
-            return value.starts_with(&pattern[..pattern.len() - 1]);
+        if let Some(stripped) = pattern.strip_suffix('*') {
+            return value.starts_with(stripped);
         }
 
         pattern == value

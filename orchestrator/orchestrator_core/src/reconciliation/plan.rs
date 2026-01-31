@@ -262,11 +262,7 @@ pub struct RollbackPoint {
 
 impl RollbackPoint {
     /// Create a new rollback point.
-    pub fn new(
-        action_id: ActionId,
-        snapshot: StateSnapshot,
-        description: Option<String>,
-    ) -> Self {
+    pub fn new(action_id: ActionId, snapshot: StateSnapshot, description: Option<String>) -> Self {
         Self {
             action_id,
             snapshot,
@@ -342,11 +338,8 @@ impl ActionSequence {
 
     /// Validate that all dependency references are valid.
     pub fn validate_dependencies(&self) -> Result<(), ValidationError> {
-        let action_ids: HashMap<ActionId, ()> = self
-            .ordered_actions
-            .iter()
-            .map(|a| (a.id, ()))
-            .collect();
+        let action_ids: HashMap<ActionId, ()> =
+            self.ordered_actions.iter().map(|a| (a.id, ())).collect();
 
         for (action_id, deps) in &self.dependencies {
             // Check that the action exists
@@ -697,10 +690,8 @@ mod tests {
     #[test]
     fn test_precondition_creation() {
         let action_id = Uuid::new_v4();
-        let precondition = Precondition::action_completed(
-            action_id,
-            "Wait for network creation".to_string(),
-        );
+        let precondition =
+            Precondition::action_completed(action_id, "Wait for network creation".to_string());
 
         assert_eq!(precondition.description, "Wait for network creation");
         assert!(matches!(
@@ -716,12 +707,13 @@ mod tests {
             "nodes": 3
         });
 
-        let snapshot = StateSnapshot::new(
-            state_data.clone(),
-            Some("Pre-update snapshot".to_string()),
-        );
+        let snapshot =
+            StateSnapshot::new(state_data.clone(), Some("Pre-update snapshot".to_string()));
 
         assert_eq!(snapshot.state_data, state_data);
-        assert_eq!(snapshot.description, Some("Pre-update snapshot".to_string()));
+        assert_eq!(
+            snapshot.description,
+            Some("Pre-update snapshot".to_string())
+        );
     }
 }

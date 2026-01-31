@@ -69,7 +69,13 @@ impl ApiClient {
     }
 
     /// Apply authentication headers to a request builder.
-    fn apply_auth(&self, builder: RequestBuilder, method: &str, path: &str, body: &[u8]) -> RequestBuilder {
+    fn apply_auth(
+        &self,
+        builder: RequestBuilder,
+        method: &str,
+        path: &str,
+        body: &[u8],
+    ) -> RequestBuilder {
         if let Some(headers) = self.sign_request(method, path, body) {
             builder
                 .header("X-Auth-PublicKey", headers.public_key)
@@ -146,7 +152,10 @@ impl ApiClient {
         if status.is_success() {
             Ok(response.json().await?)
         } else {
-            let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+            let error_text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unknown error".to_string());
             Err(CliError::api_error(format!(
                 "Request failed with status {}: {}",
                 status, error_text
@@ -161,7 +170,10 @@ impl ApiClient {
         if status.is_success() {
             Ok(())
         } else {
-            let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+            let error_text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unknown error".to_string());
             Err(CliError::api_error(format!(
                 "Request failed with status {}: {}",
                 status, error_text
@@ -200,9 +212,15 @@ mod tests {
     #[test]
     fn test_url_construction() {
         let client = ApiClient::new("http://localhost:9090/");
-        assert_eq!(client.url("/api/v1/nodes"), "http://localhost:9090/api/v1/nodes");
+        assert_eq!(
+            client.url("/api/v1/nodes"),
+            "http://localhost:9090/api/v1/nodes"
+        );
 
         let client = ApiClient::new("http://localhost:9090");
-        assert_eq!(client.url("/api/v1/nodes"), "http://localhost:9090/api/v1/nodes");
+        assert_eq!(
+            client.url("/api/v1/nodes"),
+            "http://localhost:9090/api/v1/nodes"
+        );
     }
 }

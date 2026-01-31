@@ -72,9 +72,8 @@ impl TracingConfig {
 
     /// Build an EnvFilter from this config.
     fn build_filter(&self) -> EnvFilter {
-        EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-            EnvFilter::new(format!("{}", self.log_level))
-        })
+        EnvFilter::try_from_default_env()
+            .unwrap_or_else(|_| EnvFilter::new(format!("{}", self.log_level)))
     }
 }
 

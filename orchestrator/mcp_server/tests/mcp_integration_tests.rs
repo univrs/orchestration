@@ -4,8 +4,7 @@
 //! tool listing, tool calls, and resource access.
 
 use mcp_server::{
-    JsonRpcRequest, JsonRpcResponse, OrchestratorMcpServer,
-    METHOD_NOT_FOUND, INVALID_PARAMS,
+    JsonRpcRequest, JsonRpcResponse, OrchestratorMcpServer, INVALID_PARAMS, METHOD_NOT_FOUND,
 };
 use serde_json::{json, Value};
 
@@ -17,14 +16,14 @@ mod mock {
     use async_trait::async_trait;
     use cluster_manager_interface::{ClusterEvent, ClusterManager};
     use orchestrator_shared_types::{
-        Node, NodeId, NodeResources, NodeStatus, Result, WorkloadDefinition,
-        WorkloadInstance, WorkloadId, Keypair,
+        Keypair, Node, NodeId, NodeResources, NodeStatus, Result, WorkloadDefinition, WorkloadId,
+        WorkloadInstance,
     };
     use scheduler_interface::{ScheduleDecision, ScheduleRequest, Scheduler};
     use state_store_interface::StateStore;
+    use std::collections::HashMap;
     use tokio::sync::{broadcast, mpsc};
     use uuid::Uuid;
-    use std::collections::HashMap;
 
     /// Generate a new NodeId for testing (Ed25519 public key).
     pub fn generate_node_id() -> NodeId {
@@ -142,8 +141,12 @@ mod mock {
             Ok(uuid.and_then(|u| self.workload_instances.iter().find(|i| i.id == u).cloned()))
         }
 
-        async fn list_instances_for_workload(&self, workload_id: &WorkloadId) -> Result<Vec<WorkloadInstance>> {
-            Ok(self.workload_instances
+        async fn list_instances_for_workload(
+            &self,
+            workload_id: &WorkloadId,
+        ) -> Result<Vec<WorkloadInstance>> {
+            Ok(self
+                .workload_instances
                 .iter()
                 .filter(|i| i.workload_id == *workload_id)
                 .cloned()
@@ -225,7 +228,8 @@ mod mock {
 // ============================================================================
 
 /// Create an MCP server for testing with default mocks.
-fn create_test_server() -> OrchestratorMcpServer<mock::MockStateStore, mock::MockClusterManager, mock::MockScheduler> {
+fn create_test_server(
+) -> OrchestratorMcpServer<mock::MockStateStore, mock::MockClusterManager, mock::MockScheduler> {
     OrchestratorMcpServer::new(
         mock::MockStateStore::new(),
         mock::MockClusterManager::new(),
@@ -257,14 +261,25 @@ fn make_request(method: &str, params: Value) -> JsonRpcRequest {
 
 /// Assert a response is successful and extract result.
 fn assert_success(response: &JsonRpcResponse) -> &Value {
-    assert!(response.error.is_none(), "Expected success but got error: {:?}", response.error);
-    response.result.as_ref().expect("Expected result in successful response")
+    assert!(
+        response.error.is_none(),
+        "Expected success but got error: {:?}",
+        response.error
+    );
+    response
+        .result
+        .as_ref()
+        .expect("Expected result in successful response")
 }
 
 /// Assert a response is an error with the given code.
 fn assert_error(response: &JsonRpcResponse, expected_code: i32) {
     let error = response.error.as_ref().expect("Expected error response");
-    assert_eq!(error.code, expected_code, "Expected error code {} but got {}", expected_code, error.code);
+    assert_eq!(
+        error.code, expected_code,
+        "Expected error code {} but got {}",
+        expected_code, error.code
+    );
 }
 
 // ============================================================================
@@ -275,14 +290,17 @@ fn assert_error(response: &JsonRpcResponse, expected_code: i32) {
 async fn test_initialize() {
     let server = create_test_server();
 
-    let request = make_request("initialize", json!({
-        "protocolVersion": "2024-11-05",
-        "capabilities": {},
-        "clientInfo": {
-            "name": "test-client",
-            "version": "1.0.0"
-        }
-    }));
+    let request = make_request(
+        "initialize",
+        json!({
+            "protocolVersion": "2024-11-05",
+            "capabilities": {},
+            "clientInfo": {
+                "name": "test-client",
+                "version": "1.0.0"
+            }
+        }),
+    );
 
     let response = server.handle_request(request).await;
     let result = assert_success(&response);
@@ -349,15 +367,24 @@ async fn test_tools_list() {
     assert!(!tools.is_empty(), "Expected at least one tool");
 
     // Check for expected tools
-    let tool_names: Vec<&str> = tools
-        .iter()
-        .map(|t| t["name"].as_str().unwrap())
-        .collect();
+    let tool_names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
 
-    assert!(tool_names.contains(&"list_workloads"), "Should have list_workloads tool");
-    assert!(tool_names.contains(&"create_workload"), "Should have create_workload tool");
-    assert!(tool_names.contains(&"list_nodes"), "Should have list_nodes tool");
-    assert!(tool_names.contains(&"get_cluster_status"), "Should have get_cluster_status tool");
+    assert!(
+        tool_names.contains(&"list_workloads"),
+        "Should have list_workloads tool"
+    );
+    assert!(
+        tool_names.contains(&"create_workload"),
+        "Should have create_workload tool"
+    );
+    assert!(
+        tool_names.contains(&"list_nodes"),
+        "Should have list_nodes tool"
+    );
+    assert!(
+        tool_names.contains(&"get_cluster_status"),
+        "Should have get_cluster_status tool"
+    );
 }
 
 #[tokio::test]
@@ -365,16 +392,21 @@ async fn test_tools_call_list_workloads() {
     let workload = mock::create_test_workload("test-workload");
     let server = create_server_with_data(vec![], vec![workload.clone()]);
 
-    let request = make_request("tools/call", json!({
-        "name": "list_workloads",
-        "arguments": {}
-    }));
+    let request = make_request(
+        "tools/call",
+        json!({
+            "name": "list_workloads",
+            "arguments": {}
+        }),
+    );
 
     let response = server.handle_request(request).await;
     let result = assert_success(&response);
 
     // Check for content in response
-    let content = result["content"].as_array().expect("Expected content array");
+    let content = result["content"]
+        .as_array()
+        .expect("Expected content array");
     assert!(!content.is_empty(), "Expected content in response");
 
     // First content item should be text
@@ -382,7 +414,10 @@ async fn test_tools_call_list_workloads() {
     let text = content[0]["text"].as_str().unwrap();
 
     // Should mention our test workload
-    assert!(text.contains("test-workload") || text.contains("1"), "Should list the workload");
+    assert!(
+        text.contains("test-workload") || text.contains("1"),
+        "Should list the workload"
+    );
 }
 
 #[tokio::test]
@@ -390,15 +425,20 @@ async fn test_tools_call_list_nodes() {
     let node = mock::create_test_node(mock::generate_node_id(), "192.168.1.1:8080");
     let server = create_server_with_data(vec![node.clone()], vec![]);
 
-    let request = make_request("tools/call", json!({
-        "name": "list_nodes",
-        "arguments": {}
-    }));
+    let request = make_request(
+        "tools/call",
+        json!({
+            "name": "list_nodes",
+            "arguments": {}
+        }),
+    );
 
     let response = server.handle_request(request).await;
     let result = assert_success(&response);
 
-    let content = result["content"].as_array().expect("Expected content array");
+    let content = result["content"]
+        .as_array()
+        .expect("Expected content array");
     assert!(!content.is_empty());
 }
 
@@ -408,18 +448,23 @@ async fn test_tools_call_get_cluster_status() {
     let workload = mock::create_test_workload("test-workload");
     let server = create_server_with_data(vec![node], vec![workload]);
 
-    let request = make_request("tools/call", json!({
-        "name": "get_cluster_status",
-        "arguments": {
-            "include_nodes": true,
-            "include_workloads": true
-        }
-    }));
+    let request = make_request(
+        "tools/call",
+        json!({
+            "name": "get_cluster_status",
+            "arguments": {
+                "include_nodes": true,
+                "include_workloads": true
+            }
+        }),
+    );
 
     let response = server.handle_request(request).await;
     let result = assert_success(&response);
 
-    let content = result["content"].as_array().expect("Expected content array");
+    let content = result["content"]
+        .as_array()
+        .expect("Expected content array");
     assert!(!content.is_empty());
 }
 
@@ -427,10 +472,13 @@ async fn test_tools_call_get_cluster_status() {
 async fn test_tools_call_unknown_tool() {
     let server = create_test_server();
 
-    let request = make_request("tools/call", json!({
-        "name": "unknown_tool",
-        "arguments": {}
-    }));
+    let request = make_request(
+        "tools/call",
+        json!({
+            "name": "unknown_tool",
+            "arguments": {}
+        }),
+    );
 
     let response = server.handle_request(request).await;
 
@@ -445,9 +493,15 @@ async fn test_tools_call_unknown_tool() {
         let content = result.get("content").and_then(|c| c.as_array());
         if let Some(content) = content {
             if !content.is_empty() {
-                let text = content[0].get("text").and_then(|t| t.as_str()).unwrap_or("");
-                assert!(text.to_lowercase().contains("unknown") || text.to_lowercase().contains("not found"),
-                    "Expected unknown tool message");
+                let text = content[0]
+                    .get("text")
+                    .and_then(|t| t.as_str())
+                    .unwrap_or("");
+                assert!(
+                    text.to_lowercase().contains("unknown")
+                        || text.to_lowercase().contains("not found"),
+                    "Expected unknown tool message"
+                );
             }
         }
     }
@@ -457,9 +511,12 @@ async fn test_tools_call_unknown_tool() {
 async fn test_tools_call_missing_name() {
     let server = create_test_server();
 
-    let request = make_request("tools/call", json!({
-        "arguments": {}
-    }));
+    let request = make_request(
+        "tools/call",
+        json!({
+            "arguments": {}
+        }),
+    );
 
     let response = server.handle_request(request).await;
     assert_error(&response, INVALID_PARAMS);
@@ -479,7 +536,9 @@ async fn test_resources_list() {
     let result = assert_success(&response);
 
     // Should return resources array
-    let resources = result["resources"].as_array().expect("Expected resources array");
+    let resources = result["resources"]
+        .as_array()
+        .expect("Expected resources array");
     assert!(!resources.is_empty(), "Expected at least one resource");
 
     // Check for expected resources
@@ -488,9 +547,18 @@ async fn test_resources_list() {
         .map(|r| r["uri"].as_str().unwrap())
         .collect();
 
-    assert!(resource_uris.iter().any(|u| u.contains("nodes")), "Should have nodes resource");
-    assert!(resource_uris.iter().any(|u| u.contains("workloads")), "Should have workloads resource");
-    assert!(resource_uris.iter().any(|u| u.contains("status")), "Should have status resource");
+    assert!(
+        resource_uris.iter().any(|u| u.contains("nodes")),
+        "Should have nodes resource"
+    );
+    assert!(
+        resource_uris.iter().any(|u| u.contains("workloads")),
+        "Should have workloads resource"
+    );
+    assert!(
+        resource_uris.iter().any(|u| u.contains("status")),
+        "Should have status resource"
+    );
 }
 
 #[tokio::test]
@@ -498,14 +566,19 @@ async fn test_resources_read_nodes() {
     let node = mock::create_test_node(mock::generate_node_id(), "192.168.1.1:8080");
     let server = create_server_with_data(vec![node.clone()], vec![]);
 
-    let request = make_request("resources/read", json!({
-        "uri": "orchestrator://nodes"
-    }));
+    let request = make_request(
+        "resources/read",
+        json!({
+            "uri": "orchestrator://nodes"
+        }),
+    );
 
     let response = server.handle_request(request).await;
     let result = assert_success(&response);
 
-    let contents = result["contents"].as_array().expect("Expected contents array");
+    let contents = result["contents"]
+        .as_array()
+        .expect("Expected contents array");
     assert!(!contents.is_empty());
 
     // Check content is text
@@ -517,14 +590,19 @@ async fn test_resources_read_workloads() {
     let workload = mock::create_test_workload("test-workload");
     let server = create_server_with_data(vec![], vec![workload.clone()]);
 
-    let request = make_request("resources/read", json!({
-        "uri": "orchestrator://workloads"
-    }));
+    let request = make_request(
+        "resources/read",
+        json!({
+            "uri": "orchestrator://workloads"
+        }),
+    );
 
     let response = server.handle_request(request).await;
     let result = assert_success(&response);
 
-    let contents = result["contents"].as_array().expect("Expected contents array");
+    let contents = result["contents"]
+        .as_array()
+        .expect("Expected contents array");
     assert!(!contents.is_empty());
 }
 
@@ -532,14 +610,19 @@ async fn test_resources_read_workloads() {
 async fn test_resources_read_status() {
     let server = create_test_server();
 
-    let request = make_request("resources/read", json!({
-        "uri": "orchestrator://cluster/status"
-    }));
+    let request = make_request(
+        "resources/read",
+        json!({
+            "uri": "orchestrator://cluster/status"
+        }),
+    );
 
     let response = server.handle_request(request).await;
     let result = assert_success(&response);
 
-    let contents = result["contents"].as_array().expect("Expected contents array");
+    let contents = result["contents"]
+        .as_array()
+        .expect("Expected contents array");
     assert!(!contents.is_empty());
 
     // Parse the status JSON
@@ -547,22 +630,34 @@ async fn test_resources_read_status() {
     let status: Value = serde_json::from_str(text).expect("Should be valid JSON");
 
     // Check status structure - using correct field names from ClusterStatusResource
-    assert!(status.get("total_nodes").is_some(), "Should have total_nodes");
-    assert!(status.get("total_workloads").is_some(), "Should have total_workloads");
+    assert!(
+        status.get("total_nodes").is_some(),
+        "Should have total_nodes"
+    );
+    assert!(
+        status.get("total_workloads").is_some(),
+        "Should have total_workloads"
+    );
 }
 
 #[tokio::test]
 async fn test_resources_read_unknown_uri() {
     let server = create_test_server();
 
-    let request = make_request("resources/read", json!({
-        "uri": "orchestrator://unknown/resource"
-    }));
+    let request = make_request(
+        "resources/read",
+        json!({
+            "uri": "orchestrator://unknown/resource"
+        }),
+    );
 
     let response = server.handle_request(request).await;
 
     // Should be an error
-    assert!(response.error.is_some(), "Expected error for unknown resource");
+    assert!(
+        response.error.is_some(),
+        "Expected error for unknown resource"
+    );
 }
 
 #[tokio::test]
@@ -642,14 +737,17 @@ async fn test_full_mcp_flow() {
     let server = create_server_with_data(vec![node], vec![workload]);
 
     // 1. Initialize
-    let init_request = make_request("initialize", json!({
-        "protocolVersion": "2024-11-05",
-        "capabilities": {},
-        "clientInfo": {
-            "name": "claude-code",
-            "version": "1.0.0"
-        }
-    }));
+    let init_request = make_request(
+        "initialize",
+        json!({
+            "protocolVersion": "2024-11-05",
+            "capabilities": {},
+            "clientInfo": {
+                "name": "claude-code",
+                "version": "1.0.0"
+            }
+        }),
+    );
 
     let init_response = server.handle_request(init_request).await;
     let init_result = assert_success(&init_response);
@@ -674,17 +772,23 @@ async fn test_full_mcp_flow() {
     assert!(!resources.is_empty());
 
     // 5. Call a tool
-    let call_request = make_request("tools/call", json!({
-        "name": "get_cluster_status",
-        "arguments": {}
-    }));
+    let call_request = make_request(
+        "tools/call",
+        json!({
+            "name": "get_cluster_status",
+            "arguments": {}
+        }),
+    );
     let call_response = server.handle_request(call_request).await;
     assert_success(&call_response);
 
     // 6. Read a resource
-    let read_request = make_request("resources/read", json!({
-        "uri": "orchestrator://cluster/status"
-    }));
+    let read_request = make_request(
+        "resources/read",
+        json!({
+            "uri": "orchestrator://cluster/status"
+        }),
+    );
     let read_response = server.handle_request(read_request).await;
     assert_success(&read_response);
 }

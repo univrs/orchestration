@@ -246,7 +246,11 @@ pub struct EntityChange {
 
 impl EntityChange {
     /// Creates a new entity change for creation
-    pub fn create(entity_id: EntityId, entity_type: EntityType, desired_state: serde_json::Value) -> Self {
+    pub fn create(
+        entity_id: EntityId,
+        entity_type: EntityType,
+        desired_state: serde_json::Value,
+    ) -> Self {
         Self {
             entity_id,
             entity_type,
@@ -273,7 +277,11 @@ impl EntityChange {
     }
 
     /// Creates a new entity change for deletion
-    pub fn delete(entity_id: EntityId, entity_type: EntityType, current_state: serde_json::Value) -> Self {
+    pub fn delete(
+        entity_id: EntityId,
+        entity_type: EntityType,
+        current_state: serde_json::Value,
+    ) -> Self {
         Self {
             entity_id,
             entity_type,
@@ -609,7 +617,9 @@ mod tests {
             ));
         }
         for _ in 0..85 {
-            diff_medium.unchanged.push(EntityId::Workload(Uuid::new_v4()));
+            diff_medium
+                .unchanged
+                .push(EntityId::Workload(Uuid::new_v4()));
         }
         assert_eq!(Drift::from_diff(&diff_medium).urgency, DriftUrgency::Medium);
 
@@ -637,9 +647,14 @@ mod tests {
             ));
         }
         for _ in 0..50 {
-            diff_critical.unchanged.push(EntityId::Workload(Uuid::new_v4()));
+            diff_critical
+                .unchanged
+                .push(EntityId::Workload(Uuid::new_v4()));
         }
-        assert_eq!(Drift::from_diff(&diff_critical).urgency, DriftUrgency::Critical);
+        assert_eq!(
+            Drift::from_diff(&diff_critical).urgency,
+            DriftUrgency::Critical
+        );
     }
 
     #[test]

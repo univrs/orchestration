@@ -7,12 +7,11 @@ use std::sync::Arc;
 use tokio::sync::mpsc;
 use uuid;
 
-use orchestrator_shared_types::{
-    Node, Result, WorkloadDefinition, WorkloadInstance,
-    WorkloadInstanceStatus,
-};
-use container_runtime_interface::ContainerRuntime;
 use cluster_manager_interface::{ClusterEvent, ClusterManager};
+use container_runtime_interface::ContainerRuntime;
+use orchestrator_shared_types::{
+    Node, Result, WorkloadDefinition, WorkloadInstance, WorkloadInstanceStatus,
+};
 use scheduler_interface::{ScheduleDecision, ScheduleRequest, Scheduler};
 use state_store_interface::StateStore;
 use tracing::{error, info, warn};
@@ -54,7 +53,7 @@ impl Orchestrator {
 
         self.cluster_manager.initialize().await?;
         let mut cluster_events_rx = self.cluster_manager.subscribe_to_events().await?;
-        
+
         info!("Cluster manager initialized and subscribed to events.");
 
         loop {
@@ -109,10 +108,13 @@ impl Orchestrator {
         // Store workload in persistent state
         self.state_store.put_workload(workload_def.clone()).await?;
 
-        info!("Workload {} registered. Triggering reconciliation.", workload_id);
+        info!(
+            "Workload {} registered. Triggering reconciliation.",
+            workload_id
+        );
         self.reconcile_workload(&Arc::new(workload_def)).await
     }
-    
+
     async fn handle_cluster_event(&self, event: ClusterEvent) -> Result<()> {
         match event {
             ClusterEvent::NodeAdded(node) | ClusterEvent::NodeUpdated(node) => {
@@ -122,11 +124,14 @@ impl Orchestrator {
                 let existing = self.state_store.get_node(&node.id).await?;
 
                 // Initialize the runtime on the new node if it's newly added and ready
-                if node.status == orchestrator_shared_types::NodeStatus::Ready && existing.is_none() {
-                     match self.runtime.init_node(node.id).await {
+                if node.status == orchestrator_shared_types::NodeStatus::Ready && existing.is_none()
+                {
+                    match self.runtime.init_node(node.id).await {
                         Ok(_) => info!("Runtime initialized on node {}", node.id),
-                        Err(e) => error!("Failed to initialize runtime on node {}: {:?}", node.id, e),
-                     }
+                        Err(e) => {
+                            error!("Failed to initialize runtime on node {}: {:?}", node.id, e)
+                        }
+                    }
                 }
 
                 // Store node in persistent state
@@ -151,7 +156,10 @@ impl Orchestrator {
         let workloads = self.state_store.list_workloads().await?;
 
         for workload_def in workloads {
-            if let Err(e) = self.reconcile_workload(&Arc::new(workload_def.clone())).await {
+            if let Err(e) = self
+                .reconcile_workload(&Arc::new(workload_def.clone()))
+                .await
+            {
                 error!("Failed to reconcile workload {}: {:?}", workload_def.id, e);
                 // Continue to next workload
             }
@@ -160,13 +168,16 @@ impl Orchestrator {
         Ok(())
     }
 
-
     async fn reconcile_workload(&self, workload_def: &Arc<WorkloadDefinition>) -> Result<()> {
-        info!("Reconciling workload: {} ({})", workload_def.name, workload_def.id);
+        info!(
+            "Reconciling workload: {} ({})",
+            workload_def.name, workload_def.id
+        );
 
         // Phase 1: Determine what needs to be done (read state, decide action)
         // Get current instances from persistent state
-        let current_instances = self.state_store
+        let current_instances = self
+            .state_store
             .list_instances_for_workload(&workload_def.id)
             .await?;
 
@@ -174,7 +185,10 @@ impl Orchestrator {
         let current_active_replicas = current_instances
             .iter()
             .filter(|inst| {
-                matches!(inst.status, WorkloadInstanceStatus::Running | WorkloadInstanceStatus::Pending)
+                matches!(
+                    inst.status,
+                    WorkloadInstanceStatus::Running | WorkloadInstanceStatus::Pending
+                )
             })
             .count() as u32;
 
@@ -213,16 +227,21 @@ impl Orchestrator {
             let instances_to_remove = current_instances
                 .iter()
                 .filter(|inst| {
-                    matches!(inst.status, WorkloadInstanceStatus::Running | WorkloadInstanceStatus::Pending)
+                    matches!(
+                        inst.status,
+                        WorkloadInstanceStatus::Running | WorkloadInstanceStatus::Pending
+                    )
                 })
                 .take(num_to_remove as usize)
                 .cloned()
                 .collect::<Vec<_>>();
 
             if !instances_to_remove.is_empty() {
-                 WorkloadAction::RemoveInstances { instances_to_remove }
+                WorkloadAction::RemoveInstances {
+                    instances_to_remove,
+                }
             } else {
-                 WorkloadAction::None
+                WorkloadAction::None
             }
         } else {
             WorkloadAction::None // Already reconciled
@@ -262,7 +281,11 @@ impl Orchestrator {
                                     node_id,
                                 };
 
-                                match self.runtime.create_container(container_config, &options).await {
+                                match self
+                                    .runtime
+                                    .create_container(container_config, &options)
+                                    .await
+                                {
                                     Ok(container_id) => {
                                         info!(
                                             "Container {} created for workload {} on node {}",
@@ -278,7 +301,9 @@ impl Orchestrator {
                                             status: WorkloadInstanceStatus::Pending,
                                         };
 
-                                        if let Err(e) = self.state_store.put_instance(new_instance).await {
+                                        if let Err(e) =
+                                            self.state_store.put_instance(new_instance).await
+                                        {
                                             error!("Failed to store instance in state: {:?}", e);
                                         }
                                     }
@@ -311,10 +336,19 @@ impl Orchestrator {
                     }
                 }
             }
-            WorkloadAction::RemoveInstances { instances_to_remove } => {
-                info!("Need to remove {} instances for workload {}", instances_to_remove.len(), workload_def.id);
+            WorkloadAction::RemoveInstances {
+                instances_to_remove,
+            } => {
+                info!(
+                    "Need to remove {} instances for workload {}",
+                    instances_to_remove.len(),
+                    workload_def.id
+                );
                 for instance_to_remove in instances_to_remove {
-                    info!("Attempting to remove instance {} (containers: {:?}) of workload {}", instance_to_remove.id, instance_to_remove.container_ids, workload_def.id);
+                    info!(
+                        "Attempting to remove instance {} (containers: {:?}) of workload {}",
+                        instance_to_remove.id, instance_to_remove.container_ids, workload_def.id
+                    );
 
                     // Stop and remove containers
                     for container_id in &instance_to_remove.container_ids {
@@ -324,23 +358,31 @@ impl Orchestrator {
                         }
                         match self.runtime.remove_container(container_id).await {
                             Ok(_) => info!("Removed container {}", container_id),
-                            Err(e) => error!("Failed to remove container {}: {:?}", container_id, e),
+                            Err(e) => {
+                                error!("Failed to remove container {}: {:?}", container_id, e)
+                            }
                         }
                     }
 
                     // Remove instance from persistent state
                     let instance_id = instance_to_remove.id.to_string();
                     if let Err(e) = self.state_store.delete_instance(&instance_id).await {
-                        error!("Failed to delete instance {} from state: {:?}", instance_id, e);
+                        error!(
+                            "Failed to delete instance {} from state: {:?}",
+                            instance_id, e
+                        );
                     }
                 }
             }
             WorkloadAction::None => {
                 // Nothing to do for this workload
-                info!("Workload {} is already reconciled or no action needed.", workload_def.id);
+                info!(
+                    "Workload {} is already reconciled or no action needed.",
+                    workload_def.id
+                );
             }
         }
-        
+
         // TODO: Status checking loop for existing instances (could be part of reconcile or separate)
         // This would iterate through instances, get their status from the runtime,
         // and update the WorkloadInstanceStatus in our state.

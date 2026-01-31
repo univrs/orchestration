@@ -11,8 +11,8 @@
 //! The `image` module (requires `image-pull` feature) provides image pulling
 //! and extraction from Docker Hub and other registries.
 
-pub mod oci_bundle;
 pub mod image;
+pub mod oci_bundle;
 
 #[cfg(feature = "mock-runtime")]
 pub mod mock;
@@ -28,7 +28,7 @@ pub use container_runtime_interface::{
     ContainerRuntime, ContainerStatus, CreateContainerOptions, RuntimeError,
 };
 
-pub use image::{ImageManager, ImageReference, ImageError, Manifest};
+pub use image::{ImageError, ImageManager, ImageReference, Manifest};
 
 #[cfg(feature = "mock-runtime")]
 pub use mock::MockRuntime;
@@ -38,8 +38,8 @@ pub use youki::YoukiRuntime;
 
 #[cfg(feature = "youki-cli")]
 pub use youki_cli::{
-    YoukiCliRuntime, YoukiCliConfig, YoukiCliError, YoukiState, ContainerStats,
-    LogEntry, LogOptions, LogReceiver,
+    ContainerStats, LogEntry, LogOptions, LogReceiver, YoukiCliConfig, YoukiCliError,
+    YoukiCliRuntime, YoukiState,
 };
 
 #[cfg(test)]

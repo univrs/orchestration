@@ -161,18 +161,12 @@ mod tests {
         let base = PathBuf::from("/tmp/test");
         let paths = ConfigPaths::with_base(&base);
 
-        assert_eq!(
-            paths.identity_file(),
-            base.join("config/identity.toml")
-        );
+        assert_eq!(paths.identity_file(), base.join("config/identity.toml"));
         assert_eq!(
             paths.trust_policy_file(),
             base.join("config/trust_policy.toml")
         );
-        assert_eq!(
-            paths.secrets_dir(),
-            base.join("config/secrets")
-        );
+        assert_eq!(paths.secrets_dir(), base.join("config/secrets"));
         assert_eq!(
             paths.private_key_file(),
             base.join("config/secrets/identity.key.age")

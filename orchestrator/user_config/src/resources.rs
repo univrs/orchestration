@@ -5,7 +5,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Resource limits for automated operations.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ResourceLimits {
     /// CPU limits.
     #[serde(default)]
@@ -34,20 +34,6 @@ pub struct ResourceLimits {
     /// API rate limits.
     #[serde(default)]
     pub api: ApiLimits,
-}
-
-impl Default for ResourceLimits {
-    fn default() -> Self {
-        Self {
-            cpu: CpuLimits::default(),
-            memory: MemoryLimits::default(),
-            disk: DiskLimits::default(),
-            network: NetworkLimits::default(),
-            time: TimeLimits::default(),
-            processes: ProcessLimits::default(),
-            api: ApiLimits::default(),
-        }
-    }
 }
 
 impl ResourceLimits {
@@ -150,7 +136,10 @@ impl ResourceLimits {
             if mb >= self.memory.warn_mb {
                 ResourceCheck::Warning {
                     resource: "Memory".to_string(),
-                    message: format!("Memory usage ({} MB) approaching limit ({} MB)", mb, self.memory.max_mb),
+                    message: format!(
+                        "Memory usage ({} MB) approaching limit ({} MB)",
+                        mb, self.memory.max_mb
+                    ),
                 }
             } else {
                 ResourceCheck::Ok

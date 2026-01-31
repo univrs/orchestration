@@ -26,7 +26,7 @@ use uuid::Uuid;
 
 use container_runtime_interface::{ContainerRuntime, ContainerStatus, CreateContainerOptions};
 use orchestrator_shared_types::{
-    ContainerConfig, ContainerId, NodeId, OrchestrationError, Result, Keypair,
+    ContainerConfig, ContainerId, NodeId, OrchestrationError, Result,
 };
 
 // Youki/libcontainer imports
@@ -104,7 +104,10 @@ impl YoukiRuntime {
 
     /// Get the root path for container state.
     fn root_path(&self, node_id: &NodeId) -> PathBuf {
-        self.config.state_dir.join("nodes").join(node_id.to_string())
+        self.config
+            .state_dir
+            .join("nodes")
+            .join(node_id.to_string())
     }
 
     /// Get the full container state path (root + container_id).
@@ -144,7 +147,9 @@ impl YoukiRuntime {
             .env_vars
             .iter()
             .map(|(k, v)| format!("{}={}", k, v))
-            .chain(std::iter::once("PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin".to_string()))
+            .chain(std::iter::once(
+                "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin".to_string(),
+            ))
             .collect();
         process_builder = process_builder.env(env);
 
@@ -202,11 +207,7 @@ impl YoukiRuntime {
     }
 
     /// Create the bundle directory structure for a container.
-    async fn create_bundle(
-        &self,
-        bundle_path: &Path,
-        config: &ContainerConfig,
-    ) -> Result<()> {
+    async fn create_bundle(&self, bundle_path: &Path, config: &ContainerConfig) -> Result<()> {
         let bundle = bundle_path.to_path_buf();
         let rootfs_path = bundle.join("rootfs");
         let config_path = bundle.join("config.json");
@@ -286,15 +287,17 @@ impl ContainerRuntime for YoukiRuntime {
         info!("YoukiRuntime: Initializing node {}", node_id);
 
         let root_path = self.root_path(&node_id);
-        let bundles_path = self.config.base_dir.join("nodes").join(node_id.to_string()).join("bundles");
+        let bundles_path = self
+            .config
+            .base_dir
+            .join("nodes")
+            .join(node_id.to_string())
+            .join("bundles");
 
         // Create directories in blocking task
         tokio::task::spawn_blocking(move || {
             std::fs::create_dir_all(&root_path).map_err(|e| {
-                OrchestrationError::RuntimeError(format!(
-                    "Failed to create state directory: {}",
-                    e
-                ))
+                OrchestrationError::RuntimeError(format!("Failed to create state directory: {}", e))
             })?;
             std::fs::create_dir_all(&bundles_path).map_err(|e| {
                 OrchestrationError::RuntimeError(format!(
@@ -379,7 +382,7 @@ impl ContainerRuntime for YoukiRuntime {
         // Track the container
         let container_info = ContainerInfo {
             _id: container_id.clone(),
-            node_id: options.node_id,
+            node_id: options.node_id.clone(),
             bundle_path,
             state: "running".to_string(),
         };
@@ -392,7 +395,7 @@ impl ContainerRuntime for YoukiRuntime {
         self.containers_by_node
             .write()
             .await
-            .entry(options.node_id)
+            .entry(options.node_id.clone())
             .or_insert_with(Vec::new)
             .push(container_id.clone());
 
@@ -413,8 +416,8 @@ impl ContainerRuntime for YoukiRuntime {
 
         // Stop container using libcontainer
         tokio::task::spawn_blocking(move || {
-            let mut container =
-                libcontainer::container::Container::load(container_state_path).map_err(|e| {
+            let mut container = libcontainer::container::Container::load(container_state_path)
+                .map_err(|e| {
                     OrchestrationError::RuntimeError(format!("Failed to load container: {}", e))
                 })?;
 
@@ -449,14 +452,14 @@ impl ContainerRuntime for YoukiRuntime {
 
         let container_state_path = self.container_state_path(&info.node_id, container_id);
         let bundle_path = info.bundle_path.clone();
-        let node_id = info.node_id;
+        let node_id = info.node_id.clone();
 
         drop(containers);
 
         // Delete container using libcontainer
         tokio::task::spawn_blocking(move || {
-            let mut container =
-                libcontainer::container::Container::load(container_state_path).map_err(|e| {
+            let mut container = libcontainer::container::Container::load(container_state_path)
+                .map_err(|e| {
                     OrchestrationError::RuntimeError(format!("Failed to load container: {}", e))
                 })?;
 
@@ -486,7 +489,10 @@ impl ContainerRuntime for YoukiRuntime {
     }
 
     async fn get_container_status(&self, container_id: &ContainerId) -> Result<ContainerStatus> {
-        debug!("YoukiRuntime: Getting status for container {}", container_id);
+        debug!(
+            "YoukiRuntime: Getting status for container {}",
+            container_id
+        );
 
         let containers = self.containers.read().await;
         let info = containers.get(container_id).ok_or_else(|| {
@@ -618,6 +624,10 @@ mod tests {
 
         let spec = runtime.create_oci_spec(&config).unwrap();
         assert_eq!(spec.version(), "1.0.2");
-        assert!(spec.hostname().as_ref().map(|h| h == "test").unwrap_or(false));
+        assert!(spec
+            .hostname()
+            .as_ref()
+            .map(|h| h == "test")
+            .unwrap_or(false));
     }
 }

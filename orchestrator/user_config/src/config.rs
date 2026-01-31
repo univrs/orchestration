@@ -60,7 +60,8 @@ impl UserConfig {
         let identity_file = IdentityFile::load(paths.identity_file()).await?;
 
         // Load age identity for secret store
-        let secret_store = SecretStore::load_identity(paths.private_key_file(), paths.clone()).await?;
+        let secret_store =
+            SecretStore::load_identity(paths.private_key_file(), paths.clone()).await?;
 
         // Load and decrypt Ed25519 private key
         let encrypted_key = tokio::fs::read(paths.secret_file("ed25519_key")).await?;
@@ -68,9 +69,9 @@ impl UserConfig {
         if key_bytes.len() != 32 {
             return Err(ConfigError::InvalidKey("Invalid Ed25519 key length".into()));
         }
-        let key_array: [u8; 32] = key_bytes.try_into().map_err(|_| {
-            ConfigError::InvalidKey("Failed to convert key bytes".into())
-        })?;
+        let key_array: [u8; 32] = key_bytes
+            .try_into()
+            .map_err(|_| ConfigError::InvalidKey("Failed to convert key bytes".into()))?;
 
         // Reconstruct identity
         let identity = Identity::from_metadata_and_key(identity_file.identity, &key_array)?;
@@ -161,7 +162,9 @@ impl UserConfig {
     }
 
     /// Load extended configuration (automation, resources).
-    async fn load_extended_config(paths: &ConfigPaths) -> Result<(AutomationBoundary, ResourceLimits)> {
+    async fn load_extended_config(
+        paths: &ConfigPaths,
+    ) -> Result<(AutomationBoundary, ResourceLimits)> {
         let extended_path = paths.config_dir().join("settings.toml");
 
         if extended_path.exists() {
@@ -243,7 +246,9 @@ impl UserConfig {
         identity_file.save(self.paths.identity_file()).await?;
 
         // Save trust policy
-        self.trust_policy.save(self.paths.trust_policy_file()).await?;
+        self.trust_policy
+            .save(self.paths.trust_policy_file())
+            .await?;
 
         // Save extended settings
         Self::save_extended_config(&self.paths, &self.automation, &self.resources).await?;
@@ -365,7 +370,9 @@ mod tests {
         let paths = ConfigPaths::with_base(temp.path());
 
         // Create new config
-        let config1 = UserConfig::create_new_with_paths(paths.clone()).await.unwrap();
+        let config1 = UserConfig::create_new_with_paths(paths.clone())
+            .await
+            .unwrap();
         let id1 = config1.identity().id().to_string();
 
         // Load existing config
@@ -409,7 +416,9 @@ mod tests {
         let paths = ConfigPaths::with_base(temp.path());
 
         // Create and modify config
-        let mut config = UserConfig::create_new_with_paths(paths.clone()).await.unwrap();
+        let mut config = UserConfig::create_new_with_paths(paths.clone())
+            .await
+            .unwrap();
         config.trust_policy_mut().network.allow_outbound = false;
         config.save().await.unwrap();
 

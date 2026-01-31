@@ -11,9 +11,7 @@ use tokio::sync::RwLock;
 use tracing::{debug, info};
 use uuid::Uuid;
 
-use container_runtime_interface::{
-    ContainerRuntime, ContainerStatus, CreateContainerOptions,
-};
+use container_runtime_interface::{ContainerRuntime, ContainerStatus, CreateContainerOptions};
 use orchestrator_shared_types::{ContainerConfig, ContainerId, NodeId, Result};
 
 /// Mock container state
@@ -61,7 +59,7 @@ impl ContainerRuntime for MockRuntime {
 
         let mut nodes = self.initialized_nodes.write().await;
         if !nodes.contains(&node_id) {
-            nodes.push(node_id);
+            nodes.push(node_id.clone());
         }
 
         // Initialize container list for this node
@@ -87,19 +85,22 @@ impl ContainerRuntime for MockRuntime {
         let container = MockContainer {
             id: container_id.clone(),
             _config: config.clone(),
-            node_id: options.node_id,
+            node_id: options.node_id.clone(),
             state: "running".to_string(),
             exit_code: None,
         };
 
         // Store container
-        self.containers.write().await.insert(container_id.clone(), container);
+        self.containers
+            .write()
+            .await
+            .insert(container_id.clone(), container);
 
         // Track by node
         self.containers_by_node
             .write()
             .await
-            .entry(options.node_id)
+            .entry(options.node_id.clone())
             .or_insert_with(Vec::new)
             .push(container_id.clone());
 
@@ -290,7 +291,9 @@ mod tests {
     async fn test_container_not_found() {
         let runtime = MockRuntime::new();
 
-        let result = runtime.get_container_status(&"nonexistent".to_string()).await;
+        let result = runtime
+            .get_container_status(&"nonexistent".to_string())
+            .await;
         assert!(result.is_err());
     }
 }

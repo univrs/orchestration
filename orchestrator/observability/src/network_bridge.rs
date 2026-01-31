@@ -143,11 +143,7 @@ impl PubSubNetwork for MockPubSubNetwork {
         if !self.subscriptions.read().await.contains(topic) {
             return Err(NetworkError::TopicNotFound(topic.to_string()));
         }
-        info!(
-            "MockPubSub: Published {} bytes to {}",
-            message.len(),
-            topic
-        );
+        info!("MockPubSub: Published {} bytes to {}", message.len(), topic);
         // In mock mode, we could echo messages back to simulate network
         Ok(())
     }
@@ -363,11 +359,8 @@ impl NetworkEventBridge {
                             continue;
                         }
 
-                        let msg = NetworkMessage::new(
-                            peer_id.clone(),
-                            topic_str.clone(),
-                            message_bytes,
-                        );
+                        let msg =
+                            NetworkMessage::new(peer_id.clone(), topic_str.clone(), message_bytes);
 
                         let inbound = InboundNetworkMessage {
                             topic,
@@ -384,7 +377,10 @@ impl NetworkEventBridge {
         });
     }
 
-    fn spawn_inbound_handler(&self, mut inbound_rx: mpsc::UnboundedReceiver<InboundNetworkMessage>) {
+    fn spawn_inbound_handler(
+        &self,
+        mut inbound_rx: mpsc::UnboundedReceiver<InboundNetworkMessage>,
+    ) {
         let event_hub = self.event_hub.clone();
         let message_cache = self.message_cache.clone();
         let stats = self.stats.clone();

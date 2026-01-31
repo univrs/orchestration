@@ -15,7 +15,9 @@ use tokio::sync::{broadcast, Mutex, RwLock};
 use tracing::{debug, error, info, warn};
 
 use cluster_manager_interface::{ClusterEvent, ClusterManager, ClusterManagerError};
-use orchestrator_shared_types::{Node, NodeId, NodeResources, NodeStatus, OrchestrationError, Result, Keypair};
+use orchestrator_shared_types::{
+    Keypair, Node, NodeId, NodeResources, NodeStatus, OrchestrationError, Result,
+};
 
 /// Buffer size for the broadcast channel - enough to handle burst of node joins
 const EVENT_CHANNEL_CAPACITY: usize = 64;
@@ -146,10 +148,7 @@ impl ChitchatClusterManager {
     }
 
     /// Build a Node from chitchat state.
-    fn build_node_from_state(
-        node_id: NodeId,
-        state: &HashMap<String, String>,
-    ) -> Node {
+    fn build_node_from_state(node_id: NodeId, state: &HashMap<String, String>) -> Node {
         let address = state
             .get(NODE_ADDRESS_KEY)
             .cloned()
@@ -218,11 +217,12 @@ impl ChitchatClusterManager {
             let mut chitchat_guard = chitchat.lock().await;
 
             // Publish node metadata
-            chitchat_guard.self_node_state().set(NODE_ADDRESS_KEY, node.address.clone());
-            chitchat_guard.self_node_state().set(
-                NODE_STATUS_KEY,
-                format!("{:?}", node.status),
-            );
+            chitchat_guard
+                .self_node_state()
+                .set(NODE_ADDRESS_KEY, node.address.clone());
+            chitchat_guard
+                .self_node_state()
+                .set(NODE_STATUS_KEY, format!("{:?}", node.status));
             chitchat_guard.self_node_state().set(
                 NODE_CPU_CAPACITY_KEY,
                 node.resources_capacity.cpu_cores.to_string(),
@@ -249,9 +249,11 @@ impl ChitchatClusterManager {
             );
 
             // Serialize labels as JSON
-            let labels_json = serde_json::to_string(&node.labels)
-                .unwrap_or_else(|_| "{}".to_string());
-            chitchat_guard.self_node_state().set(NODE_LABELS_KEY, labels_json);
+            let labels_json =
+                serde_json::to_string(&node.labels).unwrap_or_else(|_| "{}".to_string());
+            chitchat_guard
+                .self_node_state()
+                .set(NODE_LABELS_KEY, labels_json);
 
             debug!("Published self node state for {}", node.id);
         }
@@ -293,7 +295,7 @@ impl ChitchatClusterManager {
                             .map(|(k, v)| (k.to_string(), v.to_string()))
                             .collect();
 
-                        let node = Self::build_node_from_state(node_id, &state);
+                        let node = Self::build_node_from_state(node_id.clone(), &state);
                         new_nodes.insert(node_id, node);
                     }
                 }
@@ -316,7 +318,7 @@ impl ChitchatClusterManager {
                 for node_id in cache.keys() {
                     if !new_nodes.contains_key(node_id) {
                         info!("Node left cluster: {}", node_id);
-                        let _ = event_tx.send(ClusterEvent::NodeRemoved(*node_id));
+                        let _ = event_tx.send(ClusterEvent::NodeRemoved(node_id.clone()));
                     }
                 }
 
@@ -527,7 +529,10 @@ mod tests {
         state.insert(NODE_CPU_ALLOCATABLE_KEY.to_string(), "3.5".to_string());
         state.insert(NODE_MEMORY_ALLOCATABLE_KEY.to_string(), "7168".to_string());
         state.insert(NODE_DISK_ALLOCATABLE_KEY.to_string(), "92160".to_string());
-        state.insert(NODE_LABELS_KEY.to_string(), r#"{"zone":"us-east-1"}"#.to_string());
+        state.insert(
+            NODE_LABELS_KEY.to_string(),
+            r#"{"zone":"us-east-1"}"#.to_string(),
+        );
 
         let node = ChitchatClusterManager::build_node_from_state(node_id, &state);
 

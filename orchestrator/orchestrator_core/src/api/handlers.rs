@@ -17,8 +17,8 @@ use uuid::Uuid;
 use container_runtime_interface::LogOptions as RuntimeLogOptions;
 
 use orchestrator_shared_types::{
-    ContainerConfig, Node, NodeId, NodeResources, NodeStatus, PortMapping,
-    WorkloadDefinition, WorkloadInstance, WorkloadInstanceStatus,
+    ContainerConfig, Node, NodeId, NodeResources, NodeStatus, PortMapping, WorkloadDefinition,
+    WorkloadInstance, WorkloadInstanceStatus,
 };
 
 use super::error::{ApiError, ApiResult};
@@ -326,7 +326,9 @@ pub async fn create_workload(
     }
 
     if request.containers.is_empty() {
-        return Err(ApiError::validation_error("Workload must have at least one container"));
+        return Err(ApiError::validation_error(
+            "Workload must have at least one container",
+        ));
     }
 
     if request.replicas == 0 {
@@ -355,9 +357,7 @@ pub async fn create_workload(
 }
 
 /// List all workloads.
-pub async fn list_workloads(
-    State(state): State<ApiState>,
-) -> ApiResult<impl IntoResponse> {
+pub async fn list_workloads(State(state): State<ApiState>) -> ApiResult<impl IntoResponse> {
     let workloads = state
         .state_store
         .list_workloads()
@@ -406,7 +406,9 @@ pub async fn update_workload(
     }
 
     if request.containers.is_empty() {
-        return Err(ApiError::validation_error("Workload must have at least one container"));
+        return Err(ApiError::validation_error(
+            "Workload must have at least one container",
+        ));
     }
 
     // Create updated workload with same ID
@@ -430,7 +432,9 @@ pub async fn update_workload(
         .workload_tx
         .send(workload.clone())
         .await
-        .map_err(|_| ApiError::internal_error("Failed to submit workload update to orchestrator"))?;
+        .map_err(|_| {
+            ApiError::internal_error("Failed to submit workload update to orchestrator")
+        })?;
 
     let response: WorkloadResponse = workload.into();
     Ok(Json(response))
@@ -496,9 +500,7 @@ pub async fn list_workload_instances(
 // ============================================================================
 
 /// List all nodes.
-pub async fn list_nodes(
-    State(state): State<ApiState>,
-) -> ApiResult<impl IntoResponse> {
+pub async fn list_nodes(State(state): State<ApiState>) -> ApiResult<impl IntoResponse> {
     let nodes = state
         .state_store
         .list_nodes()
@@ -516,7 +518,8 @@ pub async fn get_node(
     State(state): State<ApiState>,
     Path(node_id_str): Path<String>,
 ) -> ApiResult<impl IntoResponse> {
-    let node_id: NodeId = node_id_str.parse()
+    let node_id: NodeId = node_id_str
+        .parse()
         .map_err(|_| ApiError::validation_error(&format!("Invalid node ID: {}", node_id_str)))?;
 
     let node = state
@@ -535,9 +538,7 @@ pub async fn get_node(
 // ============================================================================
 
 /// Get cluster status.
-pub async fn get_cluster_status(
-    State(state): State<ApiState>,
-) -> ApiResult<impl IntoResponse> {
+pub async fn get_cluster_status(State(state): State<ApiState>) -> ApiResult<impl IntoResponse> {
     // Get nodes
     let nodes = state
         .state_store
@@ -546,17 +547,27 @@ pub async fn get_cluster_status(
         .map_err(ApiError::from)?;
 
     let total_nodes = nodes.len();
-    let ready_nodes = nodes.iter().filter(|n| n.status == NodeStatus::Ready).count();
+    let ready_nodes = nodes
+        .iter()
+        .filter(|n| n.status == NodeStatus::Ready)
+        .count();
     let not_ready_nodes = total_nodes - ready_nodes;
 
     // Calculate resource totals
     let (total_cpu_capacity, total_memory_mb) = nodes.iter().fold((0.0f32, 0u64), |acc, n| {
-        (acc.0 + n.resources_capacity.cpu_cores, acc.1 + n.resources_capacity.memory_mb)
+        (
+            acc.0 + n.resources_capacity.cpu_cores,
+            acc.1 + n.resources_capacity.memory_mb,
+        )
     });
 
-    let (total_cpu_allocatable, total_memory_allocatable_mb) = nodes.iter().fold((0.0f32, 0u64), |acc, n| {
-        (acc.0 + n.resources_allocatable.cpu_cores, acc.1 + n.resources_allocatable.memory_mb)
-    });
+    let (total_cpu_allocatable, total_memory_allocatable_mb) =
+        nodes.iter().fold((0.0f32, 0u64), |acc, n| {
+            (
+                acc.0 + n.resources_allocatable.cpu_cores,
+                acc.1 + n.resources_allocatable.memory_mb,
+            )
+        });
 
     // Get workloads
     let workloads = state
@@ -616,8 +627,9 @@ pub async fn get_workload_logs(
     Query(query): Query<LogsQuery>,
 ) -> ApiResult<impl IntoResponse> {
     // Check runtime is available
-    let runtime = state.container_runtime.as_ref()
-        .ok_or_else(|| ApiError::internal_error("Container runtime not configured for log access"))?;
+    let runtime = state.container_runtime.as_ref().ok_or_else(|| {
+        ApiError::internal_error("Container runtime not configured for log access")
+    })?;
 
     // Check workload exists
     let _ = state
@@ -688,8 +700,9 @@ pub async fn get_instance_logs(
     Query(query): Query<LogsQuery>,
 ) -> ApiResult<impl IntoResponse> {
     // Check runtime is available
-    let runtime = state.container_runtime.as_ref()
-        .ok_or_else(|| ApiError::internal_error("Container runtime not configured for log access"))?;
+    let runtime = state.container_runtime.as_ref().ok_or_else(|| {
+        ApiError::internal_error("Container runtime not configured for log access")
+    })?;
 
     // Check workload exists
     let _ = state
@@ -757,18 +770,16 @@ pub async fn stream_workload_logs(
 }
 
 /// Handle WebSocket connection for log streaming.
-async fn handle_log_stream(
-    mut socket: WebSocket,
-    state: ApiState,
-    workload_id: Uuid,
-) {
+async fn handle_log_stream(mut socket: WebSocket, state: ApiState, workload_id: Uuid) {
     // Check runtime is available
     let runtime = match state.container_runtime.as_ref() {
         Some(rt) => rt,
         None => {
-            let _ = socket.send(Message::Text(
-                r#"{"error":"Container runtime not configured for log streaming"}"#.into()
-            )).await;
+            let _ = socket
+                .send(Message::Text(
+                    r#"{"error":"Container runtime not configured for log streaming"}"#.into(),
+                ))
+                .await;
             let _ = socket.close().await;
             return;
         }
@@ -778,16 +789,22 @@ async fn handle_log_stream(
     match state.state_store.get_workload(&workload_id).await {
         Ok(Some(_)) => {}
         Ok(None) => {
-            let _ = socket.send(Message::Text(
-                format!(r#"{{"error":"Workload {} not found"}}"#, workload_id)
-            )).await;
+            let _ = socket
+                .send(Message::Text(format!(
+                    r#"{{"error":"Workload {} not found"}}"#,
+                    workload_id
+                )))
+                .await;
             let _ = socket.close().await;
             return;
         }
         Err(e) => {
-            let _ = socket.send(Message::Text(
-                format!(r#"{{"error":"Failed to check workload: {}"}}"#, e)
-            )).await;
+            let _ = socket
+                .send(Message::Text(format!(
+                    r#"{{"error":"Failed to check workload: {}"}}"#,
+                    e
+                )))
+                .await;
             let _ = socket.close().await;
             return;
         }
@@ -801,29 +818,35 @@ async fn handle_log_stream(
     {
         Ok(instances) => instances,
         Err(e) => {
-            let _ = socket.send(Message::Text(
-                format!(r#"{{"error":"Failed to list instances: {}"}}"#, e)
-            )).await;
+            let _ = socket
+                .send(Message::Text(format!(
+                    r#"{{"error":"Failed to list instances: {}"}}"#,
+                    e
+                )))
+                .await;
             let _ = socket.close().await;
             return;
         }
     };
 
     if instances.is_empty() {
-        let _ = socket.send(Message::Text(
-            r#"{"info":"No instances for this workload"}"#.into()
-        )).await;
+        let _ = socket
+            .send(Message::Text(
+                r#"{"info":"No instances for this workload"}"#.into(),
+            ))
+            .await;
         let _ = socket.close().await;
         return;
     }
 
     // Send initial message
-    let _ = socket.send(Message::Text(
-        format!(r#"{{"status":"connected","workload_id":"{}","instances":{}}}"#,
+    let _ = socket
+        .send(Message::Text(format!(
+            r#"{{"status":"connected","workload_id":"{}","instances":{}}}"#,
             workload_id,
             instances.len()
-        )
-    )).await;
+        )))
+        .await;
 
     // Build log options for follow mode
     let log_options = RuntimeLogOptions {

@@ -265,7 +265,10 @@ impl OciBundleBuilder {
     fn build_process(&self, config: Option<&ContainerConfig>) -> BundleResult<Process> {
         // Build args
         let args = if let Some(c) = config {
-            let mut args = c.command.clone().unwrap_or_else(|| vec!["/bin/sh".to_string()]);
+            let mut args = c
+                .command
+                .clone()
+                .unwrap_or_else(|| vec!["/bin/sh".to_string()]);
             if let Some(extra) = &c.args {
                 args.extend(extra.clone());
             }
@@ -376,8 +379,16 @@ impl OciBundleBuilder {
             devices,
             cgroups_path: None,
             resources: Some(resources),
-            masked_paths: if self.privileged { Vec::new() } else { masked_paths },
-            readonly_paths: if self.privileged { Vec::new() } else { readonly_paths },
+            masked_paths: if self.privileged {
+                Vec::new()
+            } else {
+                masked_paths
+            },
+            readonly_paths: if self.privileged {
+                Vec::new()
+            } else {
+                readonly_paths
+            },
             seccomp: None, // Could add default seccomp profile
         })
     }
@@ -385,14 +396,16 @@ impl OciBundleBuilder {
     /// Build resource limits.
     fn build_resources(&self, config: Option<&ContainerConfig>) -> Resources {
         // Get CPU from config or builder override
-        let cpu_cores = self.cpu_cores.or_else(|| {
-            config.map(|c| c.resource_requests.cpu_cores)
-        }).filter(|&c| c > 0.0);
+        let cpu_cores = self
+            .cpu_cores
+            .or_else(|| config.map(|c| c.resource_requests.cpu_cores))
+            .filter(|&c| c > 0.0);
 
         // Get memory from config or builder override
-        let memory_mb = self.memory_mb.or_else(|| {
-            config.map(|c| c.resource_requests.memory_mb)
-        }).filter(|&m| m > 0);
+        let memory_mb = self
+            .memory_mb
+            .or_else(|| config.map(|c| c.resource_requests.memory_mb))
+            .filter(|&m| m > 0);
 
         Resources {
             cpu: cpu_cores.map(CpuResources::from_cores),
@@ -440,9 +453,7 @@ mod tests {
             image: "alpine:latest".to_string(),
             command: Some(vec!["/bin/sh".to_string()]),
             args: Some(vec!["-c".to_string(), "echo hello".to_string()]),
-            env_vars: HashMap::from([
-                ("FOO".to_string(), "bar".to_string()),
-            ]),
+            env_vars: HashMap::from([("FOO".to_string(), "bar".to_string())]),
             ports: Vec::new(),
             resource_requests: NodeResources {
                 cpu_cores: 0.5,
@@ -573,8 +584,8 @@ mod tests {
         let bundle_path = temp.path().join("bundle");
 
         let config = test_container_config();
-        let bundle = create_bundle_from_config(&bundle_path, &config)
-            .expect("Failed to create bundle");
+        let bundle =
+            create_bundle_from_config(&bundle_path, &config).expect("Failed to create bundle");
 
         assert!(bundle.path().exists());
         assert_eq!(bundle.spec().hostname, Some("test-container".to_string()));

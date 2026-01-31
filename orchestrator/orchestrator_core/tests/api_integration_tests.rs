@@ -17,11 +17,11 @@ use base64::prelude::*;
 #[cfg(feature = "rest-api")]
 use chrono::Utc;
 #[cfg(feature = "rest-api")]
-use ed25519_dalek::{SigningKey, Signer};
+use ed25519_dalek::{Signer, SigningKey};
 #[cfg(feature = "rest-api")]
 use rand::rngs::OsRng;
 #[cfg(feature = "rest-api")]
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 #[cfg(feature = "rest-api")]
 use tokio::sync::mpsc;
 #[cfg(feature = "rest-api")]
@@ -30,17 +30,14 @@ use tower::ServiceExt;
 use uuid::Uuid;
 
 #[cfg(feature = "rest-api")]
-use orchestrator_shared_types::{
-    Node, NodeResources, NodeStatus, WorkloadDefinition,
-};
+use orchestrator_shared_types::{Node, NodeResources, NodeStatus, WorkloadDefinition};
 
 // Import API modules (only available with rest-api feature)
 #[cfg(feature = "rest-api")]
 use orchestrator_core::api::{
-    build_router, ApiState, AuthConfig,
-    handlers::{
-        ListResponse, NodeResponse, WorkloadResponse, ClusterStatusResponse,
-    },
+    build_router,
+    handlers::{ClusterStatusResponse, ListResponse, NodeResponse, WorkloadResponse},
+    ApiState, AuthConfig,
 };
 
 // ============================================================================
@@ -93,7 +90,9 @@ fn create_test_state() -> (ApiState, mpsc::Receiver<WorkloadDefinition>) {
 }
 
 #[cfg(feature = "rest-api")]
-fn create_test_state_with_auth(trusted_key: Option<[u8; 32]>) -> (ApiState, mpsc::Receiver<WorkloadDefinition>, SigningKey) {
+fn create_test_state_with_auth(
+    trusted_key: Option<[u8; 32]>,
+) -> (ApiState, mpsc::Receiver<WorkloadDefinition>, SigningKey) {
     use state_store_interface::in_memory::InMemoryStateStore;
 
     let signing_key = SigningKey::generate(&mut OsRng);
@@ -151,7 +150,8 @@ fn create_workload_json() -> String {
         }],
         "replicas": 2,
         "labels": {"app": "test"}
-    }).to_string()
+    })
+    .to_string()
 }
 
 // ============================================================================
@@ -193,7 +193,8 @@ async fn test_create_workload_with_auth() {
     let router = build_router(state);
 
     let body = create_workload_json();
-    let (pub_key, timestamp, signature) = sign_request("POST", "/api/v1/workloads", body.as_bytes(), &signing_key);
+    let (pub_key, timestamp, signature) =
+        sign_request("POST", "/api/v1/workloads", body.as_bytes(), &signing_key);
 
     let response = router
         .oneshot(
@@ -248,7 +249,8 @@ async fn test_auth_failure_invalid_signature() {
     let router = build_router(state);
 
     let body = create_workload_json();
-    let (pub_key, timestamp, _signature) = sign_request("POST", "/api/v1/workloads", body.as_bytes(), &signing_key);
+    let (pub_key, timestamp, _signature) =
+        sign_request("POST", "/api/v1/workloads", body.as_bytes(), &signing_key);
 
     // Use wrong signature
     let wrong_signature = BASE64_STANDARD.encode([0u8; 64]);
@@ -290,7 +292,9 @@ async fn test_list_workloads_empty() {
 
     assert_eq!(response.status(), StatusCode::OK);
 
-    let body = axum::body::to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), 1024 * 1024)
+        .await
+        .unwrap();
     let list: ListResponse<WorkloadResponse> = serde_json::from_slice(&body).unwrap();
     assert_eq!(list.count, 0);
     assert!(list.items.is_empty());
@@ -315,7 +319,9 @@ async fn test_list_nodes_empty() {
 
     assert_eq!(response.status(), StatusCode::OK);
 
-    let body = axum::body::to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), 1024 * 1024)
+        .await
+        .unwrap();
     let list: ListResponse<NodeResponse> = serde_json::from_slice(&body).unwrap();
     assert_eq!(list.count, 0);
 }
@@ -339,7 +345,9 @@ async fn test_cluster_status_empty() {
 
     assert_eq!(response.status(), StatusCode::OK);
 
-    let body = axum::body::to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), 1024 * 1024)
+        .await
+        .unwrap();
     let status: ClusterStatusResponse = serde_json::from_slice(&body).unwrap();
     assert_eq!(status.total_nodes, 0);
     assert_eq!(status.total_workloads, 0);
@@ -379,11 +387,7 @@ async fn test_workload_crud_flow() {
         Arc::new(mock::MockClusterManager);
     let (workload_tx, _workload_rx) = mpsc::channel::<WorkloadDefinition>(100);
 
-    let state = ApiState::new_without_auth(
-        state_store.clone(),
-        cluster_manager,
-        workload_tx,
-    );
+    let state = ApiState::new_without_auth(state_store.clone(), cluster_manager, workload_tx);
     let router = build_router(state);
 
     // 1. Create workload
@@ -403,7 +407,9 @@ async fn test_workload_crud_flow() {
 
     assert_eq!(create_response.status(), StatusCode::CREATED);
 
-    let body = axum::body::to_bytes(create_response.into_body(), 1024 * 1024).await.unwrap();
+    let body = axum::body::to_bytes(create_response.into_body(), 1024 * 1024)
+        .await
+        .unwrap();
     let created: WorkloadResponse = serde_json::from_slice(&body).unwrap();
     let workload_id = created.id;
 
@@ -433,7 +439,8 @@ async fn test_workload_crud_flow() {
         }],
         "replicas": 5,
         "labels": {"app": "updated"}
-    }).to_string();
+    })
+    .to_string();
 
     let update_response = router
         .clone()
@@ -450,7 +457,9 @@ async fn test_workload_crud_flow() {
 
     assert_eq!(update_response.status(), StatusCode::OK);
 
-    let body = axum::body::to_bytes(update_response.into_body(), 1024 * 1024).await.unwrap();
+    let body = axum::body::to_bytes(update_response.into_body(), 1024 * 1024)
+        .await
+        .unwrap();
     let updated: WorkloadResponse = serde_json::from_slice(&body).unwrap();
     assert_eq!(updated.name, "updated-workload");
     assert_eq!(updated.replicas, 5);
@@ -470,7 +479,9 @@ async fn test_workload_crud_flow() {
 
     assert_eq!(list_response.status(), StatusCode::OK);
 
-    let body = axum::body::to_bytes(list_response.into_body(), 1024 * 1024).await.unwrap();
+    let body = axum::body::to_bytes(list_response.into_body(), 1024 * 1024)
+        .await
+        .unwrap();
     let list: ListResponse<WorkloadResponse> = serde_json::from_slice(&body).unwrap();
     assert_eq!(list.count, 1);
 
@@ -515,7 +526,8 @@ async fn test_validation_errors() {
         "name": "",
         "containers": [{"name": "test", "image": "test:latest"}],
         "replicas": 1
-    }).to_string();
+    })
+    .to_string();
 
     let response = router
         .clone()
@@ -537,7 +549,8 @@ async fn test_validation_errors() {
         "name": "test",
         "containers": [],
         "replicas": 1
-    }).to_string();
+    })
+    .to_string();
 
     let response = router
         .clone()
@@ -559,7 +572,8 @@ async fn test_validation_errors() {
         "name": "test",
         "containers": [{"name": "test", "image": "test:latest"}],
         "replicas": 0
-    }).to_string();
+    })
+    .to_string();
 
     let response = router
         .oneshot(
@@ -645,7 +659,9 @@ async fn test_cluster_status_with_nodes() {
 
     assert_eq!(response.status(), StatusCode::OK);
 
-    let body = axum::body::to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), 1024 * 1024)
+        .await
+        .unwrap();
     let status: ClusterStatusResponse = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(status.total_nodes, 2);

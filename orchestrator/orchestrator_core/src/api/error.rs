@@ -37,10 +37,7 @@ impl ApiError {
 
     // Common error constructors
     pub fn not_found(resource: &str, id: &str) -> Self {
-        Self::new(
-            format!("{} not found: {}", resource, id),
-            "NOT_FOUND",
-        )
+        Self::new(format!("{} not found: {}", resource, id), "NOT_FOUND")
     }
 
     pub fn bad_request(message: impl Into<String>) -> Self {
@@ -78,9 +75,7 @@ impl IntoResponse for ApiError {
 impl From<OrchestrationError> for ApiError {
     fn from(err: OrchestrationError) -> Self {
         match err {
-            OrchestrationError::NodeNotFound(id) => {
-                ApiError::not_found("Node", &id.to_string())
-            }
+            OrchestrationError::NodeNotFound(id) => ApiError::not_found("Node", &id.to_string()),
             OrchestrationError::WorkloadNotFound(id) => {
                 ApiError::not_found("Workload", &id.to_string())
             }
@@ -102,12 +97,8 @@ impl From<OrchestrationError> for ApiError {
             OrchestrationError::NetworkError(msg) => {
                 ApiError::internal_error(format!("Network error: {}", msg))
             }
-            OrchestrationError::InternalError(msg) => {
-                ApiError::internal_error(msg)
-            }
-            OrchestrationError::NotImplemented(msg) => {
-                ApiError::new(msg, "NOT_IMPLEMENTED")
-            }
+            OrchestrationError::InternalError(msg) => ApiError::internal_error(msg),
+            OrchestrationError::NotImplemented(msg) => ApiError::new(msg, "NOT_IMPLEMENTED"),
         }
     }
 }
