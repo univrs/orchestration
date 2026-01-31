@@ -36,6 +36,11 @@ jobs:
         with:
           components: rustfmt, clippy
 
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Create stub sibling dependencies
         run: |
           # Create stub Cargo.toml for univrs-identity
@@ -133,6 +138,11 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Create stub sibling dependencies
         run: |
           mkdir -p ../../univrs-identity/src ../../univrs-state/src
@@ -221,6 +231,11 @@ jobs:
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create stub sibling dependencies
         run: |
