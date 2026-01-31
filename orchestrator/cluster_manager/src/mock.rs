@@ -71,7 +71,9 @@ impl MockClusterManager {
 
         if self.nodes.write().await.remove(node_id).is_some() {
             // Broadcast the event
-            let _ = self.event_tx.send(ClusterEvent::NodeRemoved(node_id.clone()));
+            let _ = self
+                .event_tx
+                .send(ClusterEvent::NodeRemoved(node_id.clone()));
         }
 
         Ok(())

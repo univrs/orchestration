@@ -26,7 +26,7 @@ use uuid::Uuid;
 
 use container_runtime_interface::{ContainerRuntime, ContainerStatus, CreateContainerOptions};
 use orchestrator_shared_types::{
-    ContainerConfig, ContainerId, Keypair, NodeId, OrchestrationError, Result,
+    ContainerConfig, ContainerId, NodeId, OrchestrationError, Result,
 };
 
 // Youki/libcontainer imports
