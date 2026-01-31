@@ -52,10 +52,39 @@ jobs:
           ed25519-dalek = { version = "2", features = ["rand_core", "serde"] }
           rand = "0.8"
           serde = { version = "1", features = ["derive"] }
+          hex = "0.4"
           EOF
 
           cat > ../../univrs-identity/src/lib.rs << 'EOF'
-          pub use ed25519_dalek::{Signature, SigningKey as Keypair, VerifyingKey as PublicKey};
+          use serde::{Deserialize, Serialize};
+          use std::fmt;
+          pub use ed25519_dalek::Signature;
+          pub use ed25519_dalek::SigningKey as Keypair;
+
+          #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+          pub struct PublicKey(ed25519_dalek::VerifyingKey);
+
+          impl PublicKey {
+              pub fn from_bytes(bytes: &[u8; 32]) -> Result<Self, ed25519_dalek::SignatureError> {
+                  ed25519_dalek::VerifyingKey::from_bytes(bytes).map(PublicKey)
+              }
+              pub fn to_bytes(&self) -> [u8; 32] { self.0.to_bytes() }
+              pub fn as_bytes(&self) -> &[u8; 32] { self.0.as_bytes() }
+          }
+
+          impl fmt::Display for PublicKey {
+              fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                  write!(f, "{}", hex::encode(self.0.as_bytes()))
+              }
+          }
+
+          impl From<ed25519_dalek::VerifyingKey> for PublicKey {
+              fn from(key: ed25519_dalek::VerifyingKey) -> Self { PublicKey(key) }
+          }
+
+          impl From<&Keypair> for PublicKey {
+              fn from(keypair: &Keypair) -> Self { PublicKey(keypair.verifying_key()) }
+          }
           EOF
 
           # Create stub Cargo.toml for univrs-state
@@ -110,9 +139,33 @@ jobs:
           ed25519-dalek = { version = "2", features = ["rand_core", "serde"] }
           rand = "0.8"
           serde = { version = "1", features = ["derive"] }
+          hex = "0.4"
           EOF
           cat > ../../univrs-identity/src/lib.rs << 'EOF'
-          pub use ed25519_dalek::{Signature, SigningKey as Keypair, VerifyingKey as PublicKey};
+          use serde::{Deserialize, Serialize};
+          use std::fmt;
+          pub use ed25519_dalek::Signature;
+          pub use ed25519_dalek::SigningKey as Keypair;
+          #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+          pub struct PublicKey(ed25519_dalek::VerifyingKey);
+          impl PublicKey {
+              pub fn from_bytes(bytes: &[u8; 32]) -> Result<Self, ed25519_dalek::SignatureError> {
+                  ed25519_dalek::VerifyingKey::from_bytes(bytes).map(PublicKey)
+              }
+              pub fn to_bytes(&self) -> [u8; 32] { self.0.to_bytes() }
+              pub fn as_bytes(&self) -> &[u8; 32] { self.0.as_bytes() }
+          }
+          impl fmt::Display for PublicKey {
+              fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                  write!(f, "{}", hex::encode(self.0.as_bytes()))
+              }
+          }
+          impl From<ed25519_dalek::VerifyingKey> for PublicKey {
+              fn from(key: ed25519_dalek::VerifyingKey) -> Self { PublicKey(key) }
+          }
+          impl From<&Keypair> for PublicKey {
+              fn from(keypair: &Keypair) -> Self { PublicKey(keypair.verifying_key()) }
+          }
           EOF
           cat > ../../univrs-state/Cargo.toml << 'EOF'
           [package]
@@ -162,9 +215,33 @@ jobs:
           ed25519-dalek = { version = "2", features = ["rand_core", "serde"] }
           rand = "0.8"
           serde = { version = "1", features = ["derive"] }
+          hex = "0.4"
           EOF
           cat > ../../univrs-identity/src/lib.rs << 'EOF'
-          pub use ed25519_dalek::{Signature, SigningKey as Keypair, VerifyingKey as PublicKey};
+          use serde::{Deserialize, Serialize};
+          use std::fmt;
+          pub use ed25519_dalek::Signature;
+          pub use ed25519_dalek::SigningKey as Keypair;
+          #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+          pub struct PublicKey(ed25519_dalek::VerifyingKey);
+          impl PublicKey {
+              pub fn from_bytes(bytes: &[u8; 32]) -> Result<Self, ed25519_dalek::SignatureError> {
+                  ed25519_dalek::VerifyingKey::from_bytes(bytes).map(PublicKey)
+              }
+              pub fn to_bytes(&self) -> [u8; 32] { self.0.to_bytes() }
+              pub fn as_bytes(&self) -> &[u8; 32] { self.0.as_bytes() }
+          }
+          impl fmt::Display for PublicKey {
+              fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                  write!(f, "{}", hex::encode(self.0.as_bytes()))
+              }
+          }
+          impl From<ed25519_dalek::VerifyingKey> for PublicKey {
+              fn from(key: ed25519_dalek::VerifyingKey) -> Self { PublicKey(key) }
+          }
+          impl From<&Keypair> for PublicKey {
+              fn from(keypair: &Keypair) -> Self { PublicKey(keypair.verifying_key()) }
+          }
           EOF
           cat > ../../univrs-state/Cargo.toml << 'EOF'
           [package]
@@ -215,9 +292,33 @@ jobs:
           ed25519-dalek = { version = "2", features = ["rand_core", "serde"] }
           rand = "0.8"
           serde = { version = "1", features = ["derive"] }
+          hex = "0.4"
           EOF
           cat > univrs-identity/src/lib.rs << 'EOF'
-          pub use ed25519_dalek::{Signature, SigningKey as Keypair, VerifyingKey as PublicKey};
+          use serde::{Deserialize, Serialize};
+          use std::fmt;
+          pub use ed25519_dalek::Signature;
+          pub use ed25519_dalek::SigningKey as Keypair;
+          #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+          pub struct PublicKey(ed25519_dalek::VerifyingKey);
+          impl PublicKey {
+              pub fn from_bytes(bytes: &[u8; 32]) -> Result<Self, ed25519_dalek::SignatureError> {
+                  ed25519_dalek::VerifyingKey::from_bytes(bytes).map(PublicKey)
+              }
+              pub fn to_bytes(&self) -> [u8; 32] { self.0.to_bytes() }
+              pub fn as_bytes(&self) -> &[u8; 32] { self.0.as_bytes() }
+          }
+          impl fmt::Display for PublicKey {
+              fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                  write!(f, "{}", hex::encode(self.0.as_bytes()))
+              }
+          }
+          impl From<ed25519_dalek::VerifyingKey> for PublicKey {
+              fn from(key: ed25519_dalek::VerifyingKey) -> Self { PublicKey(key) }
+          }
+          impl From<&Keypair> for PublicKey {
+              fn from(keypair: &Keypair) -> Self { PublicKey(keypair.verifying_key()) }
+          }
           EOF
           cat > univrs-state/Cargo.toml << 'EOF'
           [package]
