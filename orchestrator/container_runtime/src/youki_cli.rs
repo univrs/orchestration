@@ -859,7 +859,7 @@ impl ContainerRuntime for YoukiCliRuntime {
         // Track container
         let state = ContainerState {
             id: container_id.clone(),
-            node_id: options.node_id,
+            node_id: options.node_id.clone(),
             bundle_path,
             status: "running".to_string(),
             pid: None,
@@ -872,7 +872,7 @@ impl ContainerRuntime for YoukiCliRuntime {
         self.containers_by_node
             .write()
             .await
-            .entry(options.node_id)
+            .entry(options.node_id.clone())
             .or_default()
             .push(container_id.clone());
 

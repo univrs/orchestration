@@ -295,7 +295,7 @@ impl ChitchatClusterManager {
                             .map(|(k, v)| (k.to_string(), v.to_string()))
                             .collect();
 
-                        let node = Self::build_node_from_state(node_id, &state);
+                        let node = Self::build_node_from_state(node_id.clone(), &state);
                         new_nodes.insert(node_id, node);
                     }
                 }
@@ -318,7 +318,7 @@ impl ChitchatClusterManager {
                 for node_id in cache.keys() {
                     if !new_nodes.contains_key(node_id) {
                         info!("Node left cluster: {}", node_id);
-                        let _ = event_tx.send(ClusterEvent::NodeRemoved(*node_id));
+                        let _ = event_tx.send(ClusterEvent::NodeRemoved(node_id.clone()));
                     }
                 }
 
