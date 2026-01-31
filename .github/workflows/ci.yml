@@ -70,6 +70,12 @@ jobs:
           #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
           pub struct PublicKey(ed25519_dalek::VerifyingKey);
 
+          impl std::hash::Hash for PublicKey {
+              fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+                  self.0.as_bytes().hash(state);
+              }
+          }
+
           impl PublicKey {
               pub fn from_bytes(bytes: &[u8; 32]) -> Result<Self, ed25519_dalek::SignatureError> {
                   ed25519_dalek::VerifyingKey::from_bytes(bytes).map(PublicKey)
@@ -152,12 +158,24 @@ jobs:
 
           #[async_trait::async_trait]
           impl StateStore for SqliteStore {
-              async fn list(&self, _prefix: &str) -> Result<Vec<String>, StateError> { Ok(vec![]) }
-              async fn get(&self, _key: &str) -> Result<Option<Vec<u8>>, StateError> { Ok(None) }
-              async fn set(&self, _key: &str, _value: &[u8]) -> Result<(), StateError> { Ok(()) }
-              async fn delete(&self, _key: &str) -> Result<(), StateError> { Ok(()) }
-              async fn get_json<T: DeserializeOwned>(&self, _key: &str) -> Result<Option<T>, StateError> { Ok(None) }
-              async fn set_json<T: Serialize + Sync>(&self, _key: &str, _value: &T) -> Result<(), StateError> { Ok(()) }
+              async fn list(&self, _prefix: &str) -> Result<Vec<String>, StateError> {
+                  Ok(vec![])
+              }
+              async fn get(&self, _key: &str) -> Result<Option<Vec<u8>>, StateError> {
+                  Ok(None)
+              }
+              async fn set(&self, _key: &str, _value: &[u8]) -> Result<(), StateError> {
+                  Ok(())
+              }
+              async fn delete(&self, _key: &str) -> Result<(), StateError> {
+                  Ok(())
+              }
+              async fn get_json<T: DeserializeOwned>(&self, _key: &str) -> Result<Option<T>, StateError> {
+                  Ok(None)
+              }
+              async fn set_json<T: Serialize + Sync>(&self, _key: &str, _value: &T) -> Result<(), StateError> {
+                  Ok(())
+              }
           }
           EOF
 
@@ -218,6 +236,12 @@ jobs:
           #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
           pub struct PublicKey(ed25519_dalek::VerifyingKey);
 
+          impl std::hash::Hash for PublicKey {
+              fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+                  self.0.as_bytes().hash(state);
+              }
+          }
+
           impl PublicKey {
               pub fn from_bytes(bytes: &[u8; 32]) -> Result<Self, ed25519_dalek::SignatureError> {
                   ed25519_dalek::VerifyingKey::from_bytes(bytes).map(PublicKey)
@@ -297,12 +321,24 @@ jobs:
 
           #[async_trait::async_trait]
           impl StateStore for SqliteStore {
-              async fn list(&self, _prefix: &str) -> Result<Vec<String>, StateError> { Ok(vec![]) }
-              async fn get(&self, _key: &str) -> Result<Option<Vec<u8>>, StateError> { Ok(None) }
-              async fn set(&self, _key: &str, _value: &[u8]) -> Result<(), StateError> { Ok(()) }
-              async fn delete(&self, _key: &str) -> Result<(), StateError> { Ok(()) }
-              async fn get_json<T: DeserializeOwned>(&self, _key: &str) -> Result<Option<T>, StateError> { Ok(None) }
-              async fn set_json<T: Serialize + Sync>(&self, _key: &str, _value: &T) -> Result<(), StateError> { Ok(()) }
+              async fn list(&self, _prefix: &str) -> Result<Vec<String>, StateError> {
+                  Ok(vec![])
+              }
+              async fn get(&self, _key: &str) -> Result<Option<Vec<u8>>, StateError> {
+                  Ok(None)
+              }
+              async fn set(&self, _key: &str, _value: &[u8]) -> Result<(), StateError> {
+                  Ok(())
+              }
+              async fn delete(&self, _key: &str) -> Result<(), StateError> {
+                  Ok(())
+              }
+              async fn get_json<T: DeserializeOwned>(&self, _key: &str) -> Result<Option<T>, StateError> {
+                  Ok(None)
+              }
+              async fn set_json<T: Serialize + Sync>(&self, _key: &str, _value: &T) -> Result<(), StateError> {
+                  Ok(())
+              }
           }
           EOF
 
@@ -361,6 +397,12 @@ jobs:
           #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
           pub struct PublicKey(ed25519_dalek::VerifyingKey);
 
+          impl std::hash::Hash for PublicKey {
+              fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+                  self.0.as_bytes().hash(state);
+              }
+          }
+
           impl PublicKey {
               pub fn from_bytes(bytes: &[u8; 32]) -> Result<Self, ed25519_dalek::SignatureError> {
                   ed25519_dalek::VerifyingKey::from_bytes(bytes).map(PublicKey)
@@ -440,12 +482,24 @@ jobs:
 
           #[async_trait::async_trait]
           impl StateStore for SqliteStore {
-              async fn list(&self, _prefix: &str) -> Result<Vec<String>, StateError> { Ok(vec![]) }
-              async fn get(&self, _key: &str) -> Result<Option<Vec<u8>>, StateError> { Ok(None) }
-              async fn set(&self, _key: &str, _value: &[u8]) -> Result<(), StateError> { Ok(()) }
-              async fn delete(&self, _key: &str) -> Result<(), StateError> { Ok(()) }
-              async fn get_json<T: DeserializeOwned>(&self, _key: &str) -> Result<Option<T>, StateError> { Ok(None) }
-              async fn set_json<T: Serialize + Sync>(&self, _key: &str, _value: &T) -> Result<(), StateError> { Ok(()) }
+              async fn list(&self, _prefix: &str) -> Result<Vec<String>, StateError> {
+                  Ok(vec![])
+              }
+              async fn get(&self, _key: &str) -> Result<Option<Vec<u8>>, StateError> {
+                  Ok(None)
+              }
+              async fn set(&self, _key: &str, _value: &[u8]) -> Result<(), StateError> {
+                  Ok(())
+              }
+              async fn delete(&self, _key: &str) -> Result<(), StateError> {
+                  Ok(())
+              }
+              async fn get_json<T: DeserializeOwned>(&self, _key: &str) -> Result<Option<T>, StateError> {
+                  Ok(None)
+              }
+              async fn set_json<T: Serialize + Sync>(&self, _key: &str, _value: &T) -> Result<(), StateError> {
+                  Ok(())
+              }
           }
           EOF
 
@@ -499,6 +553,12 @@ jobs:
 
           #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
           pub struct PublicKey(ed25519_dalek::VerifyingKey);
+
+          impl std::hash::Hash for PublicKey {
+              fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+                  self.0.as_bytes().hash(state);
+              }
+          }
 
           impl PublicKey {
               pub fn from_bytes(bytes: &[u8; 32]) -> Result<Self, ed25519_dalek::SignatureError> {
@@ -579,12 +639,24 @@ jobs:
 
           #[async_trait::async_trait]
           impl StateStore for SqliteStore {
-              async fn list(&self, _prefix: &str) -> Result<Vec<String>, StateError> { Ok(vec![]) }
-              async fn get(&self, _key: &str) -> Result<Option<Vec<u8>>, StateError> { Ok(None) }
-              async fn set(&self, _key: &str, _value: &[u8]) -> Result<(), StateError> { Ok(()) }
-              async fn delete(&self, _key: &str) -> Result<(), StateError> { Ok(()) }
-              async fn get_json<T: DeserializeOwned>(&self, _key: &str) -> Result<Option<T>, StateError> { Ok(None) }
-              async fn set_json<T: Serialize + Sync>(&self, _key: &str, _value: &T) -> Result<(), StateError> { Ok(()) }
+              async fn list(&self, _prefix: &str) -> Result<Vec<String>, StateError> {
+                  Ok(vec![])
+              }
+              async fn get(&self, _key: &str) -> Result<Option<Vec<u8>>, StateError> {
+                  Ok(None)
+              }
+              async fn set(&self, _key: &str, _value: &[u8]) -> Result<(), StateError> {
+                  Ok(())
+              }
+              async fn delete(&self, _key: &str) -> Result<(), StateError> {
+                  Ok(())
+              }
+              async fn get_json<T: DeserializeOwned>(&self, _key: &str) -> Result<Option<T>, StateError> {
+                  Ok(None)
+              }
+              async fn set_json<T: Serialize + Sync>(&self, _key: &str, _value: &T) -> Result<(), StateError> {
+                  Ok(())
+              }
           }
           EOF
 
