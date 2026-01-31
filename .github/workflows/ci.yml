@@ -66,6 +66,7 @@ jobs:
           pub use ed25519_dalek::SigningKey as Keypair;
           use serde::{Deserialize, Serialize};
           use std::fmt;
+          use std::str::FromStr;
 
           #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
           pub struct PublicKey(ed25519_dalek::VerifyingKey);
@@ -94,6 +95,29 @@ jobs:
           impl fmt::Display for PublicKey {
               fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                   write!(f, "{}", hex::encode(self.0.as_bytes()))
+              }
+          }
+
+          #[derive(Debug)]
+          pub struct ParsePublicKeyError(String);
+
+          impl fmt::Display for ParsePublicKeyError {
+              fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                  write!(f, "Failed to parse public key: {}", self.0)
+              }
+          }
+
+          impl std::error::Error for ParsePublicKeyError {}
+
+          impl FromStr for PublicKey {
+              type Err = ParsePublicKeyError;
+              fn from_str(s: &str) -> Result<Self, Self::Err> {
+                  let bytes = hex::decode(s).map_err(|e| ParsePublicKeyError(e.to_string()))?;
+                  if bytes.len() != 32 {
+                      return Err(ParsePublicKeyError("Invalid length".to_string()));
+                  }
+                  let arr: [u8; 32] = bytes.try_into().unwrap();
+                  Self::from_bytes(&arr).map_err(|e| ParsePublicKeyError(e.to_string()))
               }
           }
 
@@ -236,6 +260,7 @@ jobs:
           pub use ed25519_dalek::SigningKey as Keypair;
           use serde::{Deserialize, Serialize};
           use std::fmt;
+          use std::str::FromStr;
 
           #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
           pub struct PublicKey(ed25519_dalek::VerifyingKey);
@@ -264,6 +289,29 @@ jobs:
           impl fmt::Display for PublicKey {
               fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                   write!(f, "{}", hex::encode(self.0.as_bytes()))
+              }
+          }
+
+          #[derive(Debug)]
+          pub struct ParsePublicKeyError(String);
+
+          impl fmt::Display for ParsePublicKeyError {
+              fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                  write!(f, "Failed to parse public key: {}", self.0)
+              }
+          }
+
+          impl std::error::Error for ParsePublicKeyError {}
+
+          impl FromStr for PublicKey {
+              type Err = ParsePublicKeyError;
+              fn from_str(s: &str) -> Result<Self, Self::Err> {
+                  let bytes = hex::decode(s).map_err(|e| ParsePublicKeyError(e.to_string()))?;
+                  if bytes.len() != 32 {
+                      return Err(ParsePublicKeyError("Invalid length".to_string()));
+                  }
+                  let arr: [u8; 32] = bytes.try_into().unwrap();
+                  Self::from_bytes(&arr).map_err(|e| ParsePublicKeyError(e.to_string()))
               }
           }
 
@@ -401,6 +449,7 @@ jobs:
           pub use ed25519_dalek::SigningKey as Keypair;
           use serde::{Deserialize, Serialize};
           use std::fmt;
+          use std::str::FromStr;
 
           #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
           pub struct PublicKey(ed25519_dalek::VerifyingKey);
@@ -429,6 +478,29 @@ jobs:
           impl fmt::Display for PublicKey {
               fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                   write!(f, "{}", hex::encode(self.0.as_bytes()))
+              }
+          }
+
+          #[derive(Debug)]
+          pub struct ParsePublicKeyError(String);
+
+          impl fmt::Display for ParsePublicKeyError {
+              fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                  write!(f, "Failed to parse public key: {}", self.0)
+              }
+          }
+
+          impl std::error::Error for ParsePublicKeyError {}
+
+          impl FromStr for PublicKey {
+              type Err = ParsePublicKeyError;
+              fn from_str(s: &str) -> Result<Self, Self::Err> {
+                  let bytes = hex::decode(s).map_err(|e| ParsePublicKeyError(e.to_string()))?;
+                  if bytes.len() != 32 {
+                      return Err(ParsePublicKeyError("Invalid length".to_string()));
+                  }
+                  let arr: [u8; 32] = bytes.try_into().unwrap();
+                  Self::from_bytes(&arr).map_err(|e| ParsePublicKeyError(e.to_string()))
               }
           }
 
