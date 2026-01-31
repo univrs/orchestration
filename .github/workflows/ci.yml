@@ -173,7 +173,11 @@ jobs:
               async fn get_json<T: DeserializeOwned>(&self, _key: &str) -> Result<Option<T>, StateError> {
                   Ok(None)
               }
-              async fn set_json<T: Serialize + Sync>(&self, _key: &str, _value: &T) -> Result<(), StateError> {
+              async fn set_json<T: Serialize + Sync>(
+                  &self,
+                  _key: &str,
+                  _value: &T,
+              ) -> Result<(), StateError> {
                   Ok(())
               }
           }
@@ -336,7 +340,11 @@ jobs:
               async fn get_json<T: DeserializeOwned>(&self, _key: &str) -> Result<Option<T>, StateError> {
                   Ok(None)
               }
-              async fn set_json<T: Serialize + Sync>(&self, _key: &str, _value: &T) -> Result<(), StateError> {
+              async fn set_json<T: Serialize + Sync>(
+                  &self,
+                  _key: &str,
+                  _value: &T,
+              ) -> Result<(), StateError> {
                   Ok(())
               }
           }
@@ -497,7 +505,11 @@ jobs:
               async fn get_json<T: DeserializeOwned>(&self, _key: &str) -> Result<Option<T>, StateError> {
                   Ok(None)
               }
-              async fn set_json<T: Serialize + Sync>(&self, _key: &str, _value: &T) -> Result<(), StateError> {
+              async fn set_json<T: Serialize + Sync>(
+                  &self,
+                  _key: &str,
+                  _value: &T,
+              ) -> Result<(), StateError> {
                   Ok(())
               }
           }
@@ -654,7 +666,11 @@ jobs:
               async fn get_json<T: DeserializeOwned>(&self, _key: &str) -> Result<Option<T>, StateError> {
                   Ok(None)
               }
-              async fn set_json<T: Serialize + Sync>(&self, _key: &str, _value: &T) -> Result<(), StateError> {
+              async fn set_json<T: Serialize + Sync>(
+                  &self,
+                  _key: &str,
+                  _value: &T,
+              ) -> Result<(), StateError> {
                   Ok(())
               }
           }

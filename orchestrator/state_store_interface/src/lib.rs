@@ -156,11 +156,10 @@ pub fn create_state_store(config: StateStoreConfig) -> Result<Arc<dyn StateStore
         StateStoreConfig::InMemory => Ok(Arc::new(in_memory::InMemoryStateStore::new())),
 
         #[cfg(feature = "etcd")]
-        StateStoreConfig::Etcd { endpoints } => {
-            // Will be implemented in etcd_store module
-            etcd_store::EtcdStateStore::new(endpoints)
-                .map(|store| Arc::new(store) as Arc<dyn StateStore>)
-        }
+        StateStoreConfig::Etcd { .. } => Err(OrchestrationError::ConfigError(
+            "Etcd store requires async initialization. Use create_state_store_async instead."
+                .to_string(),
+        )),
 
         #[allow(unreachable_patterns)]
         _ => Err(OrchestrationError::ConfigError(
@@ -184,6 +183,7 @@ pub async fn create_state_store_async(config: StateStoreConfig) -> Result<Arc<dy
 
         #[cfg(feature = "etcd")]
         StateStoreConfig::Etcd { endpoints } => etcd_store::EtcdStateStore::new(endpoints)
+            .await
             .map(|store| Arc::new(store) as Arc<dyn StateStore>),
 
         #[allow(unreachable_patterns)]

@@ -53,7 +53,7 @@ impl StateStore for InMemoryStateStore {
 
     async fn put_node(&self, node: Node) -> Result<()> {
         let mut nodes = self.nodes.write().await;
-        nodes.insert(node.id, node);
+        nodes.insert(node.id.clone(), node);
         Ok(())
     }
 
