@@ -31,28 +31,28 @@ RUN if [ "$RUNTIME" = "youki" ]; then \
 
 WORKDIR /app
 
-# Copy external dependencies first (from parent context)
+# Copy external dependencies first (from repo root context or stubs)
 COPY univrs-identity /univrs-identity
 COPY univrs-state /univrs-state
 
 # Copy workspace files and fix external dependency paths for Docker context
-COPY univrs-orchestration/orchestrator/Cargo.toml univrs-orchestration/orchestrator/Cargo.lock ./
+COPY orchestrator/Cargo.toml orchestrator/Cargo.lock ./
 RUN sed -i 's|path = "../../univrs-identity"|path = "/univrs-identity"|g' Cargo.toml && \
     sed -i 's|path = "../../univrs-state"|path = "/univrs-state"|g' Cargo.toml
 
 # Copy all crates
-COPY univrs-orchestration/orchestrator/orchestrator_shared_types ./orchestrator_shared_types
-COPY univrs-orchestration/orchestrator/container_runtime_interface ./container_runtime_interface
-COPY univrs-orchestration/orchestrator/cluster_manager_interface ./cluster_manager_interface
-COPY univrs-orchestration/orchestrator/scheduler_interface ./scheduler_interface
-COPY univrs-orchestration/orchestrator/state_store_interface ./state_store_interface
-COPY univrs-orchestration/orchestrator/container_runtime ./container_runtime
-COPY univrs-orchestration/orchestrator/cluster_manager ./cluster_manager
-COPY univrs-orchestration/orchestrator/mcp_server ./mcp_server
-COPY univrs-orchestration/orchestrator/observability ./observability
-COPY univrs-orchestration/orchestrator/orchestrator_core ./orchestrator_core
-COPY univrs-orchestration/orchestrator/user_config ./user_config
-COPY univrs-orchestration/orchestrator/ui_cli ./ui_cli
+COPY orchestrator/orchestrator_shared_types ./orchestrator_shared_types
+COPY orchestrator/container_runtime_interface ./container_runtime_interface
+COPY orchestrator/cluster_manager_interface ./cluster_manager_interface
+COPY orchestrator/scheduler_interface ./scheduler_interface
+COPY orchestrator/state_store_interface ./state_store_interface
+COPY orchestrator/container_runtime ./container_runtime
+COPY orchestrator/cluster_manager ./cluster_manager
+COPY orchestrator/mcp_server ./mcp_server
+COPY orchestrator/observability ./observability
+COPY orchestrator/orchestrator_core ./orchestrator_core
+COPY orchestrator/user_config ./user_config
+COPY orchestrator/ui_cli ./ui_cli
 
 # Build the orchestrator node with appropriate features based on runtime
 RUN if [ "$RUNTIME" = "youki" ]; then \

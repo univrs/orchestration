@@ -39,8 +39,9 @@ jobs:
       - name: Create stub sibling dependencies
         run: |
           # Create stub Cargo.toml for univrs-identity
-          mkdir -p ../univrs-identity
-          cat > ../univrs-identity/Cargo.toml << 'EOF'
+          # Note: Cargo.toml references ../../univrs-identity from orchestrator/
+          mkdir -p ../../univrs-identity
+          cat > ../../univrs-identity/Cargo.toml << 'EOF'
           [package]
           name = "univrs-identity"
           version = "0.1.0"
@@ -55,8 +56,8 @@ jobs:
           thiserror = "1"
           EOF
 
-          mkdir -p ../univrs-identity/src
-          cat > ../univrs-identity/src/lib.rs << 'EOF'
+          mkdir -p ../../univrs-identity/src
+          cat > ../../univrs-identity/src/lib.rs << 'EOF'
           use ed25519_dalek::{SigningKey, VerifyingKey, Signature, Signer, Verifier};
           use rand::rngs::OsRng;
 
@@ -86,8 +87,9 @@ jobs:
           EOF
 
           # Create stub Cargo.toml for univrs-state
-          mkdir -p ../univrs-state
-          cat > ../univrs-state/Cargo.toml << 'EOF'
+          # Note: Cargo.toml references ../../univrs-state from orchestrator/
+          mkdir -p ../../univrs-state
+          cat > ../../univrs-state/Cargo.toml << 'EOF'
           [package]
           name = "univrs-state"
           version = "0.1.0"
@@ -97,8 +99,8 @@ jobs:
           path = "src/lib.rs"
           EOF
 
-          mkdir -p ../univrs-state/src
-          echo "pub fn placeholder() {}" > ../univrs-state/src/lib.rs
+          mkdir -p ../../univrs-state/src
+          echo "pub fn placeholder() {}" > ../../univrs-state/src/lib.rs
 
       - name: Cache Cargo
         uses: Swatinem/rust-cache@v2
@@ -128,9 +130,10 @@ jobs:
 
       - name: Create stub sibling dependencies
         run: |
-          mkdir -p ../univrs-identity/src ../univrs-state/src
+          # Note: Cargo.toml references ../../univrs-* from orchestrator/
+          mkdir -p ../../univrs-identity/src ../../univrs-state/src
 
-          cat > ../univrs-identity/Cargo.toml << 'EOF'
+          cat > ../../univrs-identity/Cargo.toml << 'EOF'
           [package]
           name = "univrs-identity"
           version = "0.1.0"
@@ -143,7 +146,7 @@ jobs:
           thiserror = "1"
           EOF
 
-          cat > ../univrs-identity/src/lib.rs << 'EOF'
+          cat > ../../univrs-identity/src/lib.rs << 'EOF'
           use ed25519_dalek::{SigningKey, VerifyingKey, Signature, Signer, Verifier};
           use rand::rngs::OsRng;
           #[derive(Clone)]
@@ -156,7 +159,7 @@ jobs:
           }
           EOF
 
-          cat > ../univrs-state/Cargo.toml << 'EOF'
+          cat > ../../univrs-state/Cargo.toml << 'EOF'
           [package]
           name = "univrs-state"
           version = "0.1.0"
@@ -165,7 +168,7 @@ jobs:
           path = "src/lib.rs"
           EOF
 
-          echo "pub fn placeholder() {}" > ../univrs-state/src/lib.rs
+          echo "pub fn placeholder() {}" > ../../univrs-state/src/lib.rs
 
       - name: Cache Cargo
         uses: Swatinem/rust-cache@v2
@@ -193,9 +196,10 @@ jobs:
 
       - name: Create stub sibling dependencies
         run: |
-          mkdir -p ../univrs-identity/src ../univrs-state/src
+          # Note: Cargo.toml references ../../univrs-* from orchestrator/
+          mkdir -p ../../univrs-identity/src ../../univrs-state/src
 
-          cat > ../univrs-identity/Cargo.toml << 'EOF'
+          cat > ../../univrs-identity/Cargo.toml << 'EOF'
           [package]
           name = "univrs-identity"
           version = "0.1.0"
@@ -208,7 +212,7 @@ jobs:
           thiserror = "1"
           EOF
 
-          cat > ../univrs-identity/src/lib.rs << 'EOF'
+          cat > ../../univrs-identity/src/lib.rs << 'EOF'
           use ed25519_dalek::{SigningKey, VerifyingKey, Signature, Signer, Verifier};
           use rand::rngs::OsRng;
           #[derive(Clone)]
@@ -221,7 +225,7 @@ jobs:
           }
           EOF
 
-          cat > ../univrs-state/Cargo.toml << 'EOF'
+          cat > ../../univrs-state/Cargo.toml << 'EOF'
           [package]
           name = "univrs-state"
           version = "0.1.0"
@@ -230,7 +234,7 @@ jobs:
           path = "src/lib.rs"
           EOF
 
-          echo "pub fn placeholder() {}" > ../univrs-state/src/lib.rs
+          echo "pub fn placeholder() {}" > ../../univrs-state/src/lib.rs
 
       - name: Cache Cargo
         uses: Swatinem/rust-cache@v2
@@ -257,13 +261,55 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Create stub sibling dependencies
+        run: |
+          mkdir -p univrs-identity/src univrs-state/src
+
+          cat > univrs-identity/Cargo.toml << 'EOF'
+          [package]
+          name = "univrs-identity"
+          version = "0.1.0"
+          edition = "2021"
+          [lib]
+          path = "src/lib.rs"
+          [dependencies]
+          ed25519-dalek = { version = "2", features = ["rand_core"] }
+          rand = "0.8"
+          thiserror = "1"
+          EOF
+
+          cat > univrs-identity/src/lib.rs << 'EOF'
+          use ed25519_dalek::{SigningKey, VerifyingKey, Signature, Signer, Verifier};
+          use rand::rngs::OsRng;
+          #[derive(Clone)]
+          pub struct Identity { signing_key: SigningKey }
+          impl Identity {
+              pub fn generate() -> Self { Self { signing_key: SigningKey::generate(&mut OsRng) } }
+              pub fn public_key(&self) -> VerifyingKey { self.signing_key.verifying_key() }
+              pub fn sign(&self, message: &[u8]) -> Signature { self.signing_key.sign(message) }
+              pub fn verify(&self, message: &[u8], signature: &Signature) -> bool { self.public_key().verify(message, signature).is_ok() }
+          }
+          EOF
+
+          cat > univrs-state/Cargo.toml << 'EOF'
+          [package]
+          name = "univrs-state"
+          version = "0.1.0"
+          edition = "2021"
+          [lib]
+          path = "src/lib.rs"
+          EOF
+
+          echo "pub fn placeholder() {}" > univrs-state/src/lib.rs
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Build Docker image (test only)
         uses: docker/build-push-action@v5
         with:
-          context: ./orchestrator
+          context: .
+          file: ./orchestrator/Dockerfile
           push: false
           tags: univrs/orchestrator-node:test
           cache-from: type=gha
