@@ -280,12 +280,12 @@ impl AutomationBoundary {
             return value.contains(middle);
         }
 
-        if pattern.starts_with('*') {
-            return value.ends_with(&pattern[1..]);
+        if let Some(stripped) = pattern.strip_prefix('*') {
+            return value.ends_with(stripped);
         }
 
-        if pattern.ends_with('*') {
-            return value.starts_with(&pattern[..pattern.len() - 1]);
+        if let Some(stripped) = pattern.strip_suffix('*') {
+            return value.starts_with(stripped);
         }
 
         value.contains(pattern)

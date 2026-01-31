@@ -222,7 +222,7 @@ pub enum SelectionError {
     /// This can happen if the node's state changed between scoring and selection,
     /// making it no longer suitable for placement.
     #[error("Failed to create reservation on node {0}: {1}")]
-    ReservationFailed(NodeId, String),
+    ReservationFailed(Box<NodeId>, String),
 
     /// The tiebreaker strategy failed to select a winner.
     ///
@@ -404,7 +404,8 @@ mod tests {
     fn test_selection_error_variants() {
         let error1 = SelectionError::NoCandidates;
         let error2 = SelectionError::AllCandidatesFiltered("test reason".to_string());
-        let error3 = SelectionError::ReservationFailed(generate_node_id(), "test".to_string());
+        let error3 =
+            SelectionError::ReservationFailed(Box::new(generate_node_id()), "test".to_string());
         let error4 =
             SelectionError::TiebreakerFailed(TiebreakerStrategy::Random, "test".to_string());
 

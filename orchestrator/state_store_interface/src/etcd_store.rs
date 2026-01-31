@@ -1,7 +1,7 @@
 use async_trait::async_trait;
-use etcd_client::{Client, Error as EtcdError, GetOptions};
+use etcd_client::{Client, GetOptions};
 use orchestrator_shared_types::{
-    Node, NodeId, OrchestrationError, Result, WorkloadDefinition, WorkloadId, WorkloadInstance,
+    Node, NodeId, Result, WorkloadDefinition, WorkloadId, WorkloadInstance,
 };
 use serde_json;
 use std::sync::Arc;

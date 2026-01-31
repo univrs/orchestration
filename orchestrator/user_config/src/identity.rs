@@ -148,9 +148,8 @@ impl Identity {
 
     /// Verify signature bytes against this identity's public key.
     pub fn verify_bytes(&self, message: &[u8], signature_bytes: &[u8; 64]) -> bool {
-        match Signature::from_bytes(signature_bytes) {
-            sig => self.verify(message, &sig),
-        }
+        let sig = Signature::from_bytes(signature_bytes);
+        self.verify(message, &sig)
     }
 
     /// Export identity metadata as TOML-serializable struct.
