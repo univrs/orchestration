@@ -166,7 +166,12 @@ impl TrustPolicy {
             return true;
         }
 
-        if (path.starts_with("~/") || path.starts_with(&dirs::home_dir().map(|p| p.to_string_lossy().to_string()).unwrap_or_default()))
+        if (path.starts_with("~/")
+            || path.starts_with(
+                &dirs::home_dir()
+                    .map(|p| p.to_string_lossy().to_string())
+                    .unwrap_or_default(),
+            ))
             && self.filesystem.allow_home_access
         {
             return true;

@@ -9,8 +9,8 @@
 //! - Multiple concurrent workloads
 
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use tokio::sync::{broadcast, RwLock};
@@ -21,8 +21,8 @@ use cluster_manager_interface::{ClusterEvent, ClusterManager};
 use container_runtime_interface::{ContainerRuntime, ContainerStatus, CreateContainerOptions};
 use orchestrator_core::start_orchestrator_service;
 use orchestrator_shared_types::{
-    ContainerConfig, ContainerId, Node, NodeId, NodeResources, NodeStatus,
-    OrchestrationError, Result as OrchResult, WorkloadDefinition, PortMapping, Keypair,
+    ContainerConfig, ContainerId, Keypair, Node, NodeId, NodeResources, NodeStatus,
+    OrchestrationError, PortMapping, Result as OrchResult, WorkloadDefinition,
 };
 use scheduler_interface::SimpleScheduler;
 use state_store_interface::in_memory::InMemoryStateStore;
@@ -107,7 +107,10 @@ impl ContainerRuntime for MockContainerRuntime {
             node_id: options.node_id,
         };
 
-        self.containers.write().await.insert(container_id.clone(), container);
+        self.containers
+            .write()
+            .await
+            .insert(container_id.clone(), container);
         Ok(container_id)
     }
 
@@ -125,7 +128,10 @@ impl ContainerRuntime for MockContainerRuntime {
         Ok(())
     }
 
-    async fn get_container_status(&self, container_id: &ContainerId) -> OrchResult<ContainerStatus> {
+    async fn get_container_status(
+        &self,
+        container_id: &ContainerId,
+    ) -> OrchResult<ContainerStatus> {
         let containers = self.containers.read().await;
         if let Some(container) = containers.get(container_id) {
             Ok(ContainerStatus {
@@ -220,7 +226,10 @@ fn generate_node_id() -> NodeId {
 fn create_test_node(id: NodeId, status: NodeStatus) -> Node {
     // Use a hash of the public key bytes to generate a deterministic address suffix
     let key_str = id.to_string();
-    let addr_suffix = key_str.as_bytes().iter().fold(0u8, |acc, &b| acc.wrapping_add(b));
+    let addr_suffix = key_str
+        .as_bytes()
+        .iter()
+        .fold(0u8, |acc, &b| acc.wrapping_add(b));
     Node {
         id,
         address: format!("10.0.0.{}:8080", addr_suffix),
@@ -318,7 +327,10 @@ impl TestHarness {
     }
 
     async fn submit_workload(&self, workload: WorkloadDefinition) {
-        self.workload_tx.send(workload).await.expect("Failed to send workload");
+        self.workload_tx
+            .send(workload)
+            .await
+            .expect("Failed to send workload");
         // Give time for reconciliation
         tokio::time::sleep(Duration::from_millis(200)).await;
     }
@@ -592,7 +604,10 @@ async fn test_already_reconciled_workload_no_action() {
     tokio::time::sleep(Duration::from_millis(200)).await;
 
     // No additional containers should be created
-    assert_eq!(harness.runtime.get_create_count().await, initial_create_count);
+    assert_eq!(
+        harness.runtime.get_create_count().await,
+        initial_create_count
+    );
 }
 
 #[tokio::test]
@@ -605,7 +620,11 @@ async fn test_state_persistence_across_operations() {
     harness.submit_workload(workload.clone()).await;
 
     // Verify workload is stored
-    let stored_workload = harness.state_store.get_workload(&workload_id).await.unwrap();
+    let stored_workload = harness
+        .state_store
+        .get_workload(&workload_id)
+        .await
+        .unwrap();
     assert!(stored_workload.is_some());
     assert_eq!(stored_workload.unwrap().name, "persistent-app");
 

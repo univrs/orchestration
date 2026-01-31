@@ -190,13 +190,18 @@ impl YoukiCliRuntime {
         tokio::fs::create_dir_all(&config.state_root).await?;
 
         // Initialize image manager
-        let image_cache = config.bundle_root.parent()
+        let image_cache = config
+            .bundle_root
+            .parent()
             .unwrap_or(Path::new("/var/lib/orchestrator"))
             .join("images");
         tokio::fs::create_dir_all(&image_cache).await?;
         let image_manager = ImageManager::new(&image_cache)?;
 
-        info!("YoukiCliRuntime initialized with binary: {:?}", config.youki_binary);
+        info!(
+            "YoukiCliRuntime initialized with binary: {:?}",
+            config.youki_binary
+        );
 
         Ok(Self {
             config,
@@ -231,7 +236,8 @@ impl YoukiCliRuntime {
 
     /// Get bundle path for a container.
     fn bundle_path(&self, node_id: &NodeId, container_id: &str) -> PathBuf {
-        self.config.bundle_root
+        self.config
+            .bundle_root
             .join(node_id.to_string())
             .join(container_id)
     }
@@ -239,7 +245,10 @@ impl YoukiCliRuntime {
     // ==================== Youki CLI Helper Methods ====================
 
     /// Execute youki command with timeout.
-    async fn exec_youki(&self, args: &[&str]) -> std::result::Result<std::process::Output, YoukiCliError> {
+    async fn exec_youki(
+        &self,
+        args: &[&str],
+    ) -> std::result::Result<std::process::Output, YoukiCliError> {
         let cmd_str = format!("youki {}", args.join(" "));
         debug!("Executing: {}", cmd_str);
 
@@ -261,9 +270,15 @@ impl YoukiCliRuntime {
     }
 
     /// youki create <id> --bundle <path>
-    pub async fn youki_create(&self, id: &str, bundle_path: &Path) -> std::result::Result<(), YoukiCliError> {
+    pub async fn youki_create(
+        &self,
+        id: &str,
+        bundle_path: &Path,
+    ) -> std::result::Result<(), YoukiCliError> {
         let bundle_str = bundle_path.to_string_lossy();
-        let output = self.exec_youki(&["create", id, "--bundle", &bundle_str]).await?;
+        let output = self
+            .exec_youki(&["create", id, "--bundle", &bundle_str])
+            .await?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -294,7 +309,11 @@ impl YoukiCliRuntime {
     }
 
     /// youki kill <id> <signal>
-    pub async fn youki_kill(&self, id: &str, signal: &str) -> std::result::Result<(), YoukiCliError> {
+    pub async fn youki_kill(
+        &self,
+        id: &str,
+        signal: &str,
+    ) -> std::result::Result<(), YoukiCliError> {
         let output = self.exec_youki(&["kill", id, signal]).await?;
 
         if !output.status.success() {
@@ -313,7 +332,11 @@ impl YoukiCliRuntime {
     }
 
     /// youki delete <id> [--force]
-    pub async fn youki_delete(&self, id: &str, force: bool) -> std::result::Result<(), YoukiCliError> {
+    pub async fn youki_delete(
+        &self,
+        id: &str,
+        force: bool,
+    ) -> std::result::Result<(), YoukiCliError> {
         let args = if force {
             vec!["delete", "--force", id]
         } else {
@@ -372,7 +395,10 @@ impl YoukiCliRuntime {
 
     /// Initialize log capture for a container.
     /// Creates log directory and empty log file.
-    async fn init_log_capture(&self, container_id: &str) -> std::result::Result<PathBuf, YoukiCliError> {
+    async fn init_log_capture(
+        &self,
+        container_id: &str,
+    ) -> std::result::Result<PathBuf, YoukiCliError> {
         let log_dir = self.log_dir(container_id);
         tokio::fs::create_dir_all(&log_dir).await?;
 
@@ -388,11 +414,19 @@ impl YoukiCliRuntime {
     }
 
     /// Get container logs from state_root (simple version for backward compatibility).
-    pub async fn get_logs(&self, container_id: &str, tail: Option<usize>) -> std::result::Result<String, YoukiCliError> {
-        self.get_logs_with_options(container_id, &LogOptions {
-            tail,
-            ..Default::default()
-        }).await
+    pub async fn get_logs(
+        &self,
+        container_id: &str,
+        tail: Option<usize>,
+    ) -> std::result::Result<String, YoukiCliError> {
+        self.get_logs_with_options(
+            container_id,
+            &LogOptions {
+                tail,
+                ..Default::default()
+            },
+        )
+        .await
     }
 
     /// Get container logs with full options support.
@@ -418,35 +452,41 @@ impl YoukiCliRuntime {
 
         // Apply since/until filters if timestamps are present in log lines
         if options.since.is_some() || options.until.is_some() {
-            lines = lines.into_iter().filter(|line| {
-                // Try to extract timestamp from line (format: "TIMESTAMP STREAM MESSAGE")
-                if let Some(ts_str) = line.split_whitespace().next() {
-                    if let Some(ref since) = options.since {
-                        if ts_str < since.as_str() {
-                            return false;
+            lines = lines
+                .into_iter()
+                .filter(|line| {
+                    // Try to extract timestamp from line (format: "TIMESTAMP STREAM MESSAGE")
+                    if let Some(ts_str) = line.split_whitespace().next() {
+                        if let Some(ref since) = options.since {
+                            if ts_str < since.as_str() {
+                                return false;
+                            }
+                        }
+                        if let Some(ref until) = options.until {
+                            if ts_str > until.as_str() {
+                                return false;
+                            }
                         }
                     }
-                    if let Some(ref until) = options.until {
-                        if ts_str > until.as_str() {
-                            return false;
-                        }
-                    }
-                }
-                true
-            }).collect();
+                    true
+                })
+                .collect();
         }
 
         // Strip timestamps if not requested
         if !options.timestamps {
-            lines = lines.iter().map(|line| {
-                // Try to strip timestamp prefix (format: "TIMESTAMP STREAM MESSAGE")
-                let parts: Vec<&str> = line.splitn(3, ' ').collect();
-                if parts.len() >= 3 {
-                    parts[2] // Return just the message
-                } else {
-                    line
-                }
-            }).collect();
+            lines = lines
+                .iter()
+                .map(|line| {
+                    // Try to strip timestamp prefix (format: "TIMESTAMP STREAM MESSAGE")
+                    let parts: Vec<&str> = line.splitn(3, ' ').collect();
+                    if parts.len() >= 3 {
+                        parts[2] // Return just the message
+                    } else {
+                        line
+                    }
+                })
+                .collect();
         }
 
         Ok(lines.join("\n"))
@@ -498,7 +538,8 @@ impl YoukiCliRuntime {
         let parts: Vec<&str> = line.splitn(3, ' ').collect();
 
         // Check if first part looks like a timestamp (contains 'T' for RFC3339)
-        let has_timestamp = parts.first()
+        let has_timestamp = parts
+            .first()
             .map(|p| p.contains('T') && p.len() > 10)
             .unwrap_or(false);
 
@@ -560,7 +601,10 @@ impl YoukiCliRuntime {
             _watcher: watcher,
         };
 
-        self.log_streams.write().await.insert(container_id.to_string(), handle);
+        self.log_streams
+            .write()
+            .await
+            .insert(container_id.to_string(), handle);
 
         Ok(receiver)
     }
@@ -579,7 +623,8 @@ impl YoukiCliRuntime {
 
         if !log_path.exists() {
             return Err(YoukiCliError::LogError(format!(
-                "Log file not found: {:?}", log_path
+                "Log file not found: {:?}",
+                log_path
             )));
         }
 
@@ -659,7 +704,10 @@ impl YoukiCliRuntime {
     // ==================== Resource Stats Methods ====================
 
     /// Get basic stats from cgroups.
-    pub async fn get_stats(&self, container_id: &str) -> std::result::Result<ContainerStats, YoukiCliError> {
+    pub async fn get_stats(
+        &self,
+        container_id: &str,
+    ) -> std::result::Result<ContainerStats, YoukiCliError> {
         let cgroup_path = PathBuf::from("/sys/fs/cgroup/youki").join(container_id);
 
         let cpu_usage = tokio::fs::read_to_string(cgroup_path.join("cpu.stat"))
@@ -715,9 +763,9 @@ impl ContainerRuntime for YoukiCliRuntime {
         info!("YoukiCliRuntime: Initializing node {}", node_id);
 
         let bundle_dir = self.config.bundle_root.join(node_id.to_string());
-        tokio::fs::create_dir_all(&bundle_dir)
-            .await
-            .map_err(|e| OrchestrationError::RuntimeError(format!("Failed to create bundle dir: {}", e)))?;
+        tokio::fs::create_dir_all(&bundle_dir).await.map_err(|e| {
+            OrchestrationError::RuntimeError(format!("Failed to create bundle dir: {}", e))
+        })?;
 
         let mut by_node = self.containers_by_node.write().await;
         by_node.entry(node_id).or_insert_with(Vec::new);
@@ -740,15 +788,19 @@ impl ContainerRuntime for YoukiCliRuntime {
         let bundle_path = self.bundle_path(&options.node_id, &container_id);
 
         // Create bundle directory
-        tokio::fs::create_dir_all(&bundle_path)
-            .await
-            .map_err(|e| OrchestrationError::RuntimeError(format!("Failed to create bundle: {}", e)))?;
+        tokio::fs::create_dir_all(&bundle_path).await.map_err(|e| {
+            OrchestrationError::RuntimeError(format!("Failed to create bundle: {}", e))
+        })?;
 
         // Pull image and get rootfs
         info!("Pulling image: {}", config.image);
-        let rootfs_source = self.image_manager.get_rootfs(&config.image)
+        let rootfs_source = self
+            .image_manager
+            .get_rootfs(&config.image)
             .await
-            .map_err(|e| OrchestrationError::RuntimeError(format!("Failed to pull image: {}", e)))?;
+            .map_err(|e| {
+                OrchestrationError::RuntimeError(format!("Failed to pull image: {}", e))
+            })?;
 
         // Link rootfs to bundle
         let rootfs_dest = bundle_path.join("rootfs");
@@ -759,7 +811,9 @@ impl ContainerRuntime for YoukiCliRuntime {
         #[cfg(unix)]
         tokio::fs::symlink(&rootfs_source, &rootfs_dest)
             .await
-            .map_err(|e| OrchestrationError::RuntimeError(format!("Failed to link rootfs: {}", e)))?;
+            .map_err(|e| {
+                OrchestrationError::RuntimeError(format!("Failed to link rootfs: {}", e))
+            })?;
 
         // Build OCI bundle (generates config.json)
         let mut builder = OciBundleBuilder::new(&bundle_path)
@@ -774,18 +828,23 @@ impl ContainerRuntime for YoukiCliRuntime {
             builder = builder.with_memory_limit(config.resource_requests.memory_mb);
         }
 
-        builder.build()
-            .map_err(|e| OrchestrationError::RuntimeError(format!("Failed to build bundle: {}", e)))?;
+        builder.build().map_err(|e| {
+            OrchestrationError::RuntimeError(format!("Failed to build bundle: {}", e))
+        })?;
 
         // Initialize log capture before starting container
-        self.init_log_capture(&container_id)
-            .await
-            .map_err(|e| OrchestrationError::RuntimeError(format!("Failed to init log capture: {}", e)))?;
+        self.init_log_capture(&container_id).await.map_err(|e| {
+            OrchestrationError::RuntimeError(format!("Failed to init log capture: {}", e))
+        })?;
 
         // Write initial log entry
-        self.write_log(&container_id, "system", &format!("Container {} starting", container_id))
-            .await
-            .ok(); // Don't fail on log write errors
+        self.write_log(
+            &container_id,
+            "system",
+            &format!("Container {} starting", container_id),
+        )
+        .await
+        .ok(); // Don't fail on log write errors
 
         // youki create
         self.youki_create(&container_id, &bundle_path)
@@ -806,8 +865,13 @@ impl ContainerRuntime for YoukiCliRuntime {
             pid: None,
         };
 
-        self.containers.write().await.insert(container_id.clone(), state);
-        self.containers_by_node.write().await
+        self.containers
+            .write()
+            .await
+            .insert(container_id.clone(), state);
+        self.containers_by_node
+            .write()
+            .await
             .entry(options.node_id)
             .or_default()
             .push(container_id.clone());
@@ -836,9 +900,13 @@ impl ContainerRuntime for YoukiCliRuntime {
                 Ok(state) if state.status == "stopped" => break,
                 Ok(_) if tokio::time::Instant::now() >= deadline => {
                     warn!("Container {} didn't stop, sending SIGKILL", container_id);
-                    self.write_log(container_id, "system", "Container timed out, sending SIGKILL")
-                        .await
-                        .ok();
+                    self.write_log(
+                        container_id,
+                        "system",
+                        "Container timed out, sending SIGKILL",
+                    )
+                    .await
+                    .ok();
                     self.youki_kill(container_id, "SIGKILL").await.ok();
                     break;
                 }
@@ -915,7 +983,8 @@ impl ContainerRuntime for YoukiCliRuntime {
                     })
                 } else {
                     Err(OrchestrationError::RuntimeError(format!(
-                        "Container not found: {}", container_id
+                        "Container not found: {}",
+                        container_id
                     )))
                 }
             }

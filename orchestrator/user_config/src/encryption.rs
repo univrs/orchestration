@@ -90,8 +90,11 @@ impl SecretStore {
             .ok_or_else(|| ConfigError::encryption("Failed to create encryptor: no recipients"))?;
 
         let mut encrypted = vec![];
-        let armor_writer = age::armor::ArmoredWriter::wrap_output(&mut encrypted, age::armor::Format::AsciiArmor)
-            .map_err(|e| ConfigError::encryption(format!("Failed to create armor writer: {}", e)))?;
+        let armor_writer =
+            age::armor::ArmoredWriter::wrap_output(&mut encrypted, age::armor::Format::AsciiArmor)
+                .map_err(|e| {
+                    ConfigError::encryption(format!("Failed to create armor writer: {}", e))
+                })?;
 
         let mut writer = encryptor
             .wrap_output(armor_writer)
@@ -127,9 +130,9 @@ impl SecretStore {
             .decrypt(std::iter::once(&self.identity as &dyn age::Identity))
             .map_err(|e| ConfigError::encryption(format!("Failed to decrypt: {}", e)))?;
 
-        reader
-            .read_to_end(&mut decrypted)
-            .map_err(|e| ConfigError::encryption(format!("Failed to read decrypted data: {}", e)))?;
+        reader.read_to_end(&mut decrypted).map_err(|e| {
+            ConfigError::encryption(format!("Failed to read decrypted data: {}", e))
+        })?;
 
         Ok(decrypted)
     }
@@ -150,9 +153,9 @@ impl SecretStore {
             .decrypt(std::iter::once(&self.identity as &dyn age::Identity))
             .map_err(|e| ConfigError::encryption(format!("Failed to decrypt: {}", e)))?;
 
-        reader
-            .read_to_end(&mut decrypted)
-            .map_err(|e| ConfigError::encryption(format!("Failed to read decrypted data: {}", e)))?;
+        reader.read_to_end(&mut decrypted).map_err(|e| {
+            ConfigError::encryption(format!("Failed to read decrypted data: {}", e))
+        })?;
 
         Ok(decrypted)
     }
@@ -327,7 +330,10 @@ mod tests {
         let store = SecretStore::generate(paths);
         let secret_value = b"my-secret-value";
 
-        store.store_secret("test-secret", secret_value).await.unwrap();
+        store
+            .store_secret("test-secret", secret_value)
+            .await
+            .unwrap();
         assert!(store.secret_exists("test-secret"));
 
         let retrieved = store.get_secret("test-secret").await.unwrap();

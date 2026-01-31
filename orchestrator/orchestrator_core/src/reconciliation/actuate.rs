@@ -27,8 +27,8 @@
 use std::time::{Duration, Instant};
 use uuid::Uuid;
 
+pub use super::plan::{Action, ActionSequence, ReconciliationPlan, RollbackPoint};
 use super::sense::CurrentState;
-pub use super::plan::{ReconciliationPlan, Action, ActionSequence, RollbackPoint};
 
 /// Unique identifier for an action in the reconciliation plan.
 pub type ActionId = Uuid;
@@ -87,7 +87,11 @@ pub struct RetryPolicy {
 
 impl RetryPolicy {
     /// Creates a new retry policy with the given parameters.
-    pub fn new(max_attempts: u32, backoff_strategy: BackoffStrategy, initial_delay: Duration) -> Self {
+    pub fn new(
+        max_attempts: u32,
+        backoff_strategy: BackoffStrategy,
+        initial_delay: Duration,
+    ) -> Self {
         Self {
             max_attempts,
             backoff_strategy,
@@ -312,7 +316,10 @@ pub enum ActuationError {
 impl std::fmt::Display for ActuationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ActuationError::ActionExecutionFailed { failed_count, failures } => {
+            ActuationError::ActionExecutionFailed {
+                failed_count,
+                failures,
+            } => {
                 write!(f, "{} actions failed: {:?}", failed_count, failures)
             }
             ActuationError::ExecutionTimeout => write!(f, "Execution timeout"),
@@ -514,11 +521,7 @@ mod tests {
 
     #[test]
     fn test_retry_policy_linear() {
-        let policy = RetryPolicy::new(
-            3,
-            BackoffStrategy::Linear,
-            Duration::from_secs(2),
-        );
+        let policy = RetryPolicy::new(3, BackoffStrategy::Linear, Duration::from_secs(2));
         assert_eq!(policy.calculate_delay(0), Duration::from_secs(2));
         assert_eq!(policy.calculate_delay(1), Duration::from_secs(4));
         assert_eq!(policy.calculate_delay(2), Duration::from_secs(6));

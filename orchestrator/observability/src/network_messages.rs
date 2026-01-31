@@ -486,12 +486,7 @@ mod tests {
 
     #[test]
     fn test_gradient_message_serialization() {
-        let gradient = GradientMessage::new(
-            "node-1".to_string(),
-            0.8,
-            0.6,
-            0.9,
-        );
+        let gradient = GradientMessage::new("node-1".to_string(), 0.8, 0.6, 0.9);
 
         let bytes = gradient.to_bytes().unwrap();
         let parsed = GradientMessage::from_bytes(&bytes).unwrap();
@@ -504,20 +499,11 @@ mod tests {
 
     #[test]
     fn test_election_message_phases() {
-        let prepare = ElectionMessage::prepare(
-            "candidate-1".to_string(),
-            1,
-            100,
-            3,
-        );
+        let prepare = ElectionMessage::prepare("candidate-1".to_string(), 1, 100, 3);
         assert_eq!(prepare.phase, ElectionPhase::Prepare);
         assert_eq!(prepare.quorum_size, 3);
 
-        let elected = ElectionMessage::elected(
-            "leader-1".to_string(),
-            1,
-            100,
-        );
+        let elected = ElectionMessage::elected("leader-1".to_string(), 1, 100);
         assert_eq!(elected.phase, ElectionPhase::Elected);
         assert_eq!(elected.leader, Some("leader-1".to_string()));
     }
@@ -549,11 +535,8 @@ mod tests {
         assert_eq!(barrier.participants.len(), 2);
         assert_eq!(barrier.timeout_ms, 5000);
 
-        let decision = SeptalMessage::decide(
-            barrier.barrier_id.clone(),
-            "coordinator".to_string(),
-            true,
-        );
+        let decision =
+            SeptalMessage::decide(barrier.barrier_id.clone(), "coordinator".to_string(), true);
         assert_eq!(decision.phase, 2);
         assert_eq!(decision.decision, Some(true));
     }

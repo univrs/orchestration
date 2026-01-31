@@ -59,25 +59,25 @@ use container_runtime_interface::ContainerRuntime;
 use orchestrator_core::start_orchestrator_service;
 
 #[cfg(feature = "youki-runtime")]
-use container_runtime::{YoukiCliRuntime, YoukiCliConfig};
+use container_runtime::{YoukiCliConfig, YoukiCliRuntime};
 use orchestrator_shared_types::{
-    ContainerId, ContainerConfig, Keypair, Node, NodeId, NodeResources, NodeStatus,
+    ContainerConfig, ContainerId, Keypair, Node, NodeId, NodeResources, NodeStatus,
     OrchestrationError, Result as OrchResult,
 };
 use scheduler_interface::SimpleScheduler;
-use state_store_interface::{StateStore, SqliteStateStore};
+use state_store_interface::{SqliteStateStore, StateStore};
 
 #[cfg(feature = "mcp")]
 use mcp_server::OrchestratorMcpServer;
 
 #[cfg(feature = "observability")]
 use observability::{
-    EventHub, HealthChecker, MetricsRegistry, ObservabilityConfig, ObservabilityServer,
-    MockPubSubNetwork, NetworkEventBridge, NetworkBridgeConfig,
+    EventHub, HealthChecker, MetricsRegistry, MockPubSubNetwork, NetworkBridgeConfig,
+    NetworkEventBridge, ObservabilityConfig, ObservabilityServer,
 };
 
 #[cfg(feature = "rest-api")]
-use orchestrator_core::api::{ApiState, AuthConfig, build_router as build_api_router};
+use orchestrator_core::api::{build_router as build_api_router, ApiState, AuthConfig};
 
 /// Node configuration parsed from environment.
 #[derive(Debug, Clone)]
@@ -144,8 +144,8 @@ impl NodeConfig {
             .parse()
             .context("Invalid LISTEN_ADDR")?;
 
-        let public_addr_str = std::env::var("PUBLIC_ADDR")
-            .unwrap_or_else(|_| listen_addr.to_string());
+        let public_addr_str =
+            std::env::var("PUBLIC_ADDR").unwrap_or_else(|_| listen_addr.to_string());
 
         // Try to parse as socket address first, then resolve as hostname
         let public_addr: SocketAddr = public_addr_str
@@ -168,8 +168,8 @@ impl NodeConfig {
             .map(|s| s.trim().to_string())
             .collect();
 
-        let cluster_id = std::env::var("CLUSTER_ID")
-            .unwrap_or_else(|_| "orchestrator-cluster".to_string());
+        let cluster_id =
+            std::env::var("CLUSTER_ID").unwrap_or_else(|_| "orchestrator-cluster".to_string());
 
         let api_port: u16 = std::env::var("API_PORT")
             .unwrap_or_else(|_| "9090".to_string())
@@ -205,9 +205,13 @@ impl NodeConfig {
             .unwrap_or_else(|_| {
                 // Default based on feature flag
                 #[cfg(feature = "youki-runtime")]
-                { "youki".to_string() }
+                {
+                    "youki".to_string()
+                }
                 #[cfg(not(feature = "youki-runtime"))]
-                { "mock".to_string() }
+                {
+                    "mock".to_string()
+                }
             })
             .to_lowercase()
             .as_str()
@@ -217,14 +221,13 @@ impl NodeConfig {
             _ => RuntimeType::Mock,
         };
 
-        let youki_binary = std::env::var("YOUKI_BINARY")
-            .unwrap_or_else(|_| "youki".to_string());
+        let youki_binary = std::env::var("YOUKI_BINARY").unwrap_or_else(|_| "youki".to_string());
 
         let bundle_root = std::env::var("BUNDLE_ROOT")
             .unwrap_or_else(|_| "/var/lib/orchestrator/bundles".to_string());
 
-        let state_root = std::env::var("STATE_ROOT")
-            .unwrap_or_else(|_| "/run/orchestrator".to_string());
+        let state_root =
+            std::env::var("STATE_ROOT").unwrap_or_else(|_| "/run/orchestrator".to_string());
 
         #[cfg(feature = "mcp")]
         let mcp_stdio = std::env::var("MCP_STDIO")
@@ -274,7 +277,10 @@ impl ContainerRuntime for MockRuntime {
         options: &container_runtime_interface::CreateContainerOptions,
     ) -> OrchResult<ContainerId> {
         let id = Uuid::new_v4().to_string();
-        self.containers.lock().await.insert(id.clone(), config.clone());
+        self.containers
+            .lock()
+            .await
+            .insert(id.clone(), config.clone());
         info!(
             "MockRuntime: Created container {} for workload {} on node {}",
             id, options.workload_id, options.node_id
@@ -333,18 +339,13 @@ impl ContainerRuntime for MockRuntime {
 fn init_logging(config: &NodeConfig) {
     use tracing_subscriber::{fmt, EnvFilter};
 
-    let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new(&config.log_level));
+    let filter =
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&config.log_level));
 
     if config.log_json {
-        fmt()
-            .with_env_filter(filter)
-            .json()
-            .init();
+        fmt().with_env_filter(filter).json().init();
     } else {
-        fmt()
-            .with_env_filter(filter)
-            .init();
+        fmt().with_env_filter(filter).init();
     }
 }
 
@@ -439,7 +440,10 @@ async fn main() -> Result<()> {
             match YoukiCliRuntime::with_config(youki_config).await {
                 Ok(runtime) => Arc::new(runtime),
                 Err(e) => {
-                    error!("Failed to initialize youki runtime: {}. Falling back to mock runtime.", e);
+                    error!(
+                        "Failed to initialize youki runtime: {}. Falling back to mock runtime.",
+                        e
+                    );
                     Arc::new(MockRuntime::default())
                 }
             }
@@ -447,9 +451,11 @@ async fn main() -> Result<()> {
     };
 
     // Create concrete stores first (needed for MCP server if enabled)
-    let sqlite_store = Arc::new(SqliteStateStore::in_memory()
-        .await
-        .context("Failed to create in-memory SQLite state store")?);
+    let sqlite_store = Arc::new(
+        SqliteStateStore::in_memory()
+            .await
+            .context("Failed to create in-memory SQLite state store")?,
+    );
     let simple_scheduler = SimpleScheduler;
 
     // Wrap in Arc for orchestrator service
@@ -463,16 +469,12 @@ async fn main() -> Result<()> {
     #[cfg(feature = "mcp")]
     if config.mcp_stdio {
         // Create MCP server with cloned concrete types (dereference Arc and clone)
-        let mcp_store = (*sqlite_store).clone();  // Clone the SqliteStateStore
-        let mcp_cluster = (*cluster_manager).clone();  // Clone the ChitchatClusterManager
+        let mcp_store = (*sqlite_store).clone(); // Clone the SqliteStateStore
+        let mcp_cluster = (*cluster_manager).clone(); // Clone the ChitchatClusterManager
         let mcp_scheduler = simple_scheduler;
 
         tokio::spawn(async move {
-            let mcp_server = OrchestratorMcpServer::new(
-                mcp_store,
-                mcp_cluster,
-                mcp_scheduler,
-            );
+            let mcp_server = OrchestratorMcpServer::new(mcp_store, mcp_cluster, mcp_scheduler);
 
             info!("Starting MCP server over stdio for Claude Code integration");
             if let Err(e) = mcp_server.serve_stdio().await {
@@ -526,7 +528,10 @@ async fn main() -> Result<()> {
 
         // Start the network bridge (subscribes to P2P topics)
         if let Err(e) = network_bridge.start().await {
-            warn!("Failed to start network bridge: {}. P2P messaging will be unavailable.", e);
+            warn!(
+                "Failed to start network bridge: {}. P2P messaging will be unavailable.",
+                e
+            );
         } else {
             info!("Network bridge started - P2P messaging enabled for gradient/election/credit/septal topics");
         }
@@ -576,7 +581,9 @@ async fn main() -> Result<()> {
                 loop {
                     match event_rx.recv().await {
                         Ok(cluster_event) => {
-                            event_hub_clone.broadcast_cluster_event(&cluster_event).await;
+                            event_hub_clone
+                                .broadcast_cluster_event(&cluster_event)
+                                .await;
                         }
                         Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
                             warn!("Event forwarder lagged, missed {} events", n);
@@ -640,7 +647,10 @@ async fn main() -> Result<()> {
     info!("Shutting down...");
 
     // Update status to NotReady before shutdown
-    if let Err(e) = cluster_manager.update_self_status(NodeStatus::NotReady).await {
+    if let Err(e) = cluster_manager
+        .update_self_status(NodeStatus::NotReady)
+        .await
+    {
         warn!("Failed to update status on shutdown: {}", e);
     }
 

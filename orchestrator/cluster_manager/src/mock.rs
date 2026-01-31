@@ -79,7 +79,10 @@ impl MockClusterManager {
 
     /// Update a node's status (for testing).
     pub async fn update_node_status(&self, node_id: &NodeId, status: NodeStatus) -> Result<()> {
-        debug!("MockClusterManager: Updating node {} status to {:?}", node_id, status);
+        debug!(
+            "MockClusterManager: Updating node {} status to {:?}",
+            node_id, status
+        );
 
         let mut nodes = self.nodes.write().await;
         if let Some(node) = nodes.get_mut(node_id) {
@@ -209,10 +212,8 @@ mod tests {
         // Add 3 nodes
         for i in 0..3 {
             let node_id = generate_node_id();
-            let node = MockClusterManager::create_test_node(
-                node_id,
-                &format!("10.0.0.{}:8080", i + 1),
-            );
+            let node =
+                MockClusterManager::create_test_node(node_id, &format!("10.0.0.{}:8080", i + 1));
             manager.add_node(node).await.unwrap();
         }
 

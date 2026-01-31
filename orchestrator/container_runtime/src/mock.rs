@@ -11,9 +11,7 @@ use tokio::sync::RwLock;
 use tracing::{debug, info};
 use uuid::Uuid;
 
-use container_runtime_interface::{
-    ContainerRuntime, ContainerStatus, CreateContainerOptions,
-};
+use container_runtime_interface::{ContainerRuntime, ContainerStatus, CreateContainerOptions};
 use orchestrator_shared_types::{ContainerConfig, ContainerId, NodeId, Result};
 
 /// Mock container state
@@ -93,7 +91,10 @@ impl ContainerRuntime for MockRuntime {
         };
 
         // Store container
-        self.containers.write().await.insert(container_id.clone(), container);
+        self.containers
+            .write()
+            .await
+            .insert(container_id.clone(), container);
 
         // Track by node
         self.containers_by_node
@@ -290,7 +291,9 @@ mod tests {
     async fn test_container_not_found() {
         let runtime = MockRuntime::new();
 
-        let result = runtime.get_container_status(&"nonexistent".to_string()).await;
+        let result = runtime
+            .get_container_status(&"nonexistent".to_string())
+            .await;
         assert!(result.is_err());
     }
 }

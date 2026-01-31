@@ -504,7 +504,7 @@ impl Filter for ResourceFeasibilityChecker {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use orchestrator_shared_types::{NodeResources, NodeStatus, Keypair};
+    use orchestrator_shared_types::{Keypair, NodeResources, NodeStatus};
 
     fn generate_node_id() -> NodeId {
         Keypair::generate().public_key()

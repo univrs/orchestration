@@ -30,10 +30,10 @@ use axum::{
 };
 use base64::prelude::*;
 use chrono::{DateTime, Duration, Utc};
-use ed25519_dalek::{Signature, VerifyingKey, Verifier};
+use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use http_body_util::BodyExt;
 use serde::{Deserialize, Serialize};
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 
 /// Authentication error response.
 #[derive(Debug, Serialize, Deserialize)]
@@ -58,10 +58,7 @@ impl AuthError {
     }
 
     pub fn invalid_header(header: &str, reason: &str) -> Self {
-        Self::new(
-            format!("Invalid {}: {}", header, reason),
-            "INVALID_HEADER",
-        )
+        Self::new(format!("Invalid {}: {}", header, reason), "INVALID_HEADER")
     }
 
     pub fn timestamp_expired() -> Self {
@@ -72,10 +69,7 @@ impl AuthError {
     }
 
     pub fn invalid_signature() -> Self {
-        Self::new(
-            "Signature verification failed",
-            "INVALID_SIGNATURE",
-        )
+        Self::new("Signature verification failed", "INVALID_SIGNATURE")
     }
 }
 
@@ -101,7 +95,7 @@ pub struct AuthConfig {
 impl Default for AuthConfig {
     fn default() -> Self {
         Self {
-            max_timestamp_age_secs: 300, // 5 minutes
+            max_timestamp_age_secs: 300,     // 5 minutes
             allow_future_timestamp_secs: 60, // 1 minute clock skew
             trusted_keys: Vec::new(),
             required: true,
@@ -152,11 +146,14 @@ pub async fn auth_middleware(
 ) -> Result<(Request, AuthInfo), AuthError> {
     // If auth is not required, return a dummy auth info
     if !config.required {
-        return Ok((request, AuthInfo {
-            public_key: [0u8; 32],
-            public_key_base64: "disabled".to_string(),
-            timestamp: Utc::now(),
-        }));
+        return Ok((
+            request,
+            AuthInfo {
+                public_key: [0u8; 32],
+                public_key_base64: "disabled".to_string(),
+                timestamp: Utc::now(),
+            },
+        ));
     }
 
     // Extract headers
@@ -341,7 +338,13 @@ mod tests {
 
         // Parse timestamp
         let timestamp = DateTime::parse_from_rfc3339(&headers.timestamp).unwrap();
-        assert!(timestamp.signed_duration_since(Utc::now()).num_seconds().abs() < 5);
+        assert!(
+            timestamp
+                .signed_duration_since(Utc::now())
+                .num_seconds()
+                .abs()
+                < 5
+        );
     }
 
     #[test]
@@ -361,7 +364,9 @@ mod tests {
         let signature = signing_key.sign(signing_string.as_bytes());
 
         // Verify signature
-        assert!(verifying_key.verify(signing_string.as_bytes(), &signature).is_ok());
+        assert!(verifying_key
+            .verify(signing_string.as_bytes(), &signature)
+            .is_ok());
 
         // Wrong message should fail
         assert!(verifying_key.verify(b"wrong message", &signature).is_err());

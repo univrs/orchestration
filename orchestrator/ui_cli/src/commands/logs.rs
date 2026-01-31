@@ -120,7 +120,10 @@ pub async fn execute(args: LogsArgs, api_url: &str) -> anyhow::Result<()> {
 
 /// Fetch logs via REST API.
 async fn fetch_logs(client: &ApiClient, workload_id: &str, args: &LogsArgs) -> anyhow::Result<()> {
-    output::info(&format!("Fetching logs for workload '{}'...", args.workload));
+    output::info(&format!(
+        "Fetching logs for workload '{}'...",
+        args.workload
+    ));
 
     // Build query parameters
     let mut query_params = vec![format!("tail={}", args.tail)];
@@ -229,7 +232,10 @@ fn print_log_line(line: &str, show_timestamps: bool) {
 
 /// Stream logs via WebSocket.
 async fn stream_logs(api_url: &str, workload_id: &str, args: &LogsArgs) -> anyhow::Result<()> {
-    output::info(&format!("Streaming logs for workload '{}' (Ctrl+C to stop)...", args.workload));
+    output::info(&format!(
+        "Streaming logs for workload '{}' (Ctrl+C to stop)...",
+        args.workload
+    ));
 
     // Convert HTTP URL to WebSocket URL
     let ws_url = api_url
@@ -239,9 +245,9 @@ async fn stream_logs(api_url: &str, workload_id: &str, args: &LogsArgs) -> anyho
     let ws_endpoint = format!("{}/api/v1/workloads/{}/logs/stream", ws_url, workload_id);
 
     // Connect to WebSocket
-    let (ws_stream, _) = connect_async(&ws_endpoint).await.map_err(|e| {
-        CliError::api_error(format!("Failed to connect to WebSocket: {}", e))
-    })?;
+    let (ws_stream, _) = connect_async(&ws_endpoint)
+        .await
+        .map_err(|e| CliError::api_error(format!("Failed to connect to WebSocket: {}", e)))?;
 
     output::info(&format!("Connected to {}", ws_endpoint));
     println!();
@@ -297,7 +303,10 @@ async fn stream_logs(api_url: &str, workload_id: &str, args: &LogsArgs) -> anyho
                                 .map(|c| format!("[{}]", &c[..12.min(c.len())]).cyan().to_string())
                                 .unwrap_or_default();
 
-                            print_log_line(&format!("{} {}", container_prefix, log), args.timestamps);
+                            print_log_line(
+                                &format!("{} {}", container_prefix, log),
+                                args.timestamps,
+                            );
                         }
                     }
                     Err(_) => {
@@ -334,7 +343,8 @@ async fn find_workload_id(client: &ApiClient, name_or_id: &str) -> Result<String
     // Otherwise search by name
     let response: ListWorkloadsResponse = client.get("/api/v1/workloads").await?;
 
-    let matching: Vec<_> = response.items
+    let matching: Vec<_> = response
+        .items
         .iter()
         .filter(|w| w.name == name_or_id || w.id.starts_with(name_or_id))
         .collect();

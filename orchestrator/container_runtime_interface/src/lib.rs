@@ -1,12 +1,14 @@
 use async_trait::async_trait;
-use orchestrator_shared_types::{ContainerConfig, ContainerId, NodeId, OrchestrationError, Result, WorkloadId};
+use orchestrator_shared_types::{
+    ContainerConfig, ContainerId, NodeId, OrchestrationError, Result, WorkloadId,
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateContainerOptions {
     pub workload_id: WorkloadId,
     pub node_id: NodeId, // Where the container should run (managed by scheduler)
-    // Potentially OCI spec details or other runtime-specific configurations
+                         // Potentially OCI spec details or other runtime-specific configurations
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -65,7 +67,7 @@ pub trait ContainerRuntime: Send + Sync {
         // Default implementation - logs not supported
         let _ = (container_id, options);
         Err(OrchestrationError::RuntimeError(
-            "Log retrieval not supported by this runtime".to_string()
+            "Log retrieval not supported by this runtime".to_string(),
         ))
     }
 

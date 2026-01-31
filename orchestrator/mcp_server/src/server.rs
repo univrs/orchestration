@@ -14,13 +14,13 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
 
-use state_store_interface::StateStore;
 use cluster_manager_interface::ClusterManager;
-use scheduler_interface::Scheduler;
 use orchestrator_shared_types::{NodeId, WorkloadId};
+use scheduler_interface::Scheduler;
+use state_store_interface::StateStore;
 
-use crate::tools::*;
 use crate::resources::{self, ResourcePath};
+use crate::tools::*;
 
 /// MCP Server for the AI-native container orchestrator.
 ///
@@ -47,11 +47,7 @@ where
     Sch: Scheduler + Send + Sync + Clone + 'static,
 {
     /// Create a new MCP server with the given orchestrator components.
-    pub fn new(
-        state_store: S,
-        cluster_manager: C,
-        scheduler: Sch,
-    ) -> Self {
+    pub fn new(state_store: S, cluster_manager: C, scheduler: Sch) -> Self {
         Self {
             state_store: Arc::new(RwLock::new(state_store)),
             cluster_manager: Arc::new(RwLock::new(cluster_manager)),
@@ -94,7 +90,10 @@ where
     // === Tool Implementations ===
 
     /// List all workloads.
-    async fn handle_list_workloads(&self, input: ListWorkloadsInput) -> Result<ListWorkloadsOutput, String> {
+    async fn handle_list_workloads(
+        &self,
+        input: ListWorkloadsInput,
+    ) -> Result<ListWorkloadsOutput, String> {
         let store = self.state_store.read().await;
         let workloads = store.list_workloads().await.map_err(|e| e.to_string())?;
 
@@ -118,7 +117,10 @@ where
     }
 
     /// Create a new workload.
-    async fn handle_create_workload(&self, input: CreateWorkloadInput) -> Result<CreateWorkloadOutput, String> {
+    async fn handle_create_workload(
+        &self,
+        input: CreateWorkloadInput,
+    ) -> Result<CreateWorkloadOutput, String> {
         let workload_id = WorkloadId::new_v4();
         let workload = input.to_workload_definition(workload_id);
 
@@ -137,7 +139,10 @@ where
     }
 
     /// Get workload details.
-    async fn handle_get_workload(&self, input: GetWorkloadInput) -> Result<GetWorkloadOutput, String> {
+    async fn handle_get_workload(
+        &self,
+        input: GetWorkloadInput,
+    ) -> Result<GetWorkloadOutput, String> {
         let workload_id: WorkloadId = input
             .workload_id
             .parse()
@@ -154,7 +159,10 @@ where
     }
 
     /// Scale a workload.
-    async fn handle_scale_workload(&self, input: ScaleWorkloadInput) -> Result<ScaleWorkloadOutput, String> {
+    async fn handle_scale_workload(
+        &self,
+        input: ScaleWorkloadInput,
+    ) -> Result<ScaleWorkloadOutput, String> {
         let workload_id: WorkloadId = input
             .workload_id
             .parse()
@@ -184,7 +192,10 @@ where
     }
 
     /// Delete a workload.
-    async fn handle_delete_workload(&self, input: DeleteWorkloadInput) -> Result<DeleteWorkloadOutput, String> {
+    async fn handle_delete_workload(
+        &self,
+        input: DeleteWorkloadInput,
+    ) -> Result<DeleteWorkloadOutput, String> {
         let workload_id: WorkloadId = input
             .workload_id
             .parse()
@@ -264,7 +275,10 @@ where
     }
 
     /// Get cluster status.
-    async fn handle_get_cluster_status(&self, _input: GetClusterStatusInput) -> Result<GetClusterStatusOutput, String> {
+    async fn handle_get_cluster_status(
+        &self,
+        _input: GetClusterStatusInput,
+    ) -> Result<GetClusterStatusOutput, String> {
         let cluster = self.cluster_manager.read().await;
         let nodes = cluster.list_nodes().await.map_err(|e| e.to_string())?;
 
@@ -451,7 +465,12 @@ impl JsonRpcResponse {
     }
 
     /// Create an error response with data.
-    pub fn error_with_data(id: Option<Value>, code: i32, message: impl Into<String>, data: Value) -> Self {
+    pub fn error_with_data(
+        id: Option<Value>,
+        code: i32,
+        message: impl Into<String>,
+        data: Value,
+    ) -> Self {
         Self {
             jsonrpc: "2.0".to_string(),
             id,
@@ -528,7 +547,11 @@ where
         let _params: InitializeParams = match serde_json::from_value(params) {
             Ok(p) => p,
             Err(e) => {
-                return JsonRpcResponse::error(id, INVALID_PARAMS, format!("Invalid params: {}", e));
+                return JsonRpcResponse::error(
+                    id,
+                    INVALID_PARAMS,
+                    format!("Invalid params: {}", e),
+                );
             }
         };
 
@@ -595,7 +618,11 @@ where
         let params: ToolCallParams = match serde_json::from_value(params) {
             Ok(p) => p,
             Err(e) => {
-                return JsonRpcResponse::error(id, INVALID_PARAMS, format!("Invalid params: {}", e));
+                return JsonRpcResponse::error(
+                    id,
+                    INVALID_PARAMS,
+                    format!("Invalid params: {}", e),
+                );
             }
         };
 
@@ -603,8 +630,8 @@ where
 
         let result = match params.name.as_str() {
             "list_workloads" => {
-                let input: ListWorkloadsInput = serde_json::from_value(params.arguments)
-                    .unwrap_or_default();
+                let input: ListWorkloadsInput =
+                    serde_json::from_value(params.arguments).unwrap_or_default();
                 match self.handle_list_workloads(input).await {
                     Ok(output) => serde_json::to_value(output).unwrap_or_default(),
                     Err(e) => return JsonRpcResponse::error(id, INTERNAL_ERROR, e),
@@ -651,8 +678,8 @@ where
                 }
             }
             "list_nodes" => {
-                let input: ListNodesInput = serde_json::from_value(params.arguments)
-                    .unwrap_or_default();
+                let input: ListNodesInput =
+                    serde_json::from_value(params.arguments).unwrap_or_default();
                 match self.handle_list_nodes(input).await {
                     Ok(output) => serde_json::to_value(output).unwrap_or_default(),
                     Err(e) => return JsonRpcResponse::error(id, INTERNAL_ERROR, e),
@@ -669,8 +696,8 @@ where
                 }
             }
             "get_cluster_status" => {
-                let input: GetClusterStatusInput = serde_json::from_value(params.arguments)
-                    .unwrap_or_default();
+                let input: GetClusterStatusInput =
+                    serde_json::from_value(params.arguments).unwrap_or_default();
                 match self.handle_get_cluster_status(input).await {
                     Ok(output) => serde_json::to_value(output).unwrap_or_default(),
                     Err(e) => return JsonRpcResponse::error(id, INTERNAL_ERROR, e),
@@ -722,7 +749,11 @@ where
         let params: ReadParams = match serde_json::from_value(params) {
             Ok(p) => p,
             Err(e) => {
-                return JsonRpcResponse::error(id, INVALID_PARAMS, format!("Invalid params: {}", e));
+                return JsonRpcResponse::error(
+                    id,
+                    INVALID_PARAMS,
+                    format!("Invalid params: {}", e),
+                );
             }
         };
 
@@ -785,7 +816,9 @@ where
                         });
                         serde_json::to_string_pretty(&node_data).unwrap_or_default()
                     }
-                    Ok(None) => return JsonRpcResponse::error(id, INVALID_PARAMS, "Node not found"),
+                    Ok(None) => {
+                        return JsonRpcResponse::error(id, INVALID_PARAMS, "Node not found")
+                    }
                     Err(e) => return JsonRpcResponse::error(id, INTERNAL_ERROR, e.to_string()),
                 }
             }
@@ -812,7 +845,9 @@ where
             ResourcePath::Workload(workload_id) => {
                 let parsed_id: WorkloadId = match workload_id.parse() {
                     Ok(id) => id,
-                    Err(_) => return JsonRpcResponse::error(id, INVALID_PARAMS, "Invalid workload ID"),
+                    Err(_) => {
+                        return JsonRpcResponse::error(id, INVALID_PARAMS, "Invalid workload ID")
+                    }
                 };
                 let store = self.state_store.read().await;
                 match store.get_workload(&parsed_id).await {
@@ -832,18 +867,26 @@ where
                         });
                         serde_json::to_string_pretty(&workload_data).unwrap_or_default()
                     }
-                    Ok(None) => return JsonRpcResponse::error(id, INVALID_PARAMS, "Workload not found"),
+                    Ok(None) => {
+                        return JsonRpcResponse::error(id, INVALID_PARAMS, "Workload not found")
+                    }
                     Err(e) => return JsonRpcResponse::error(id, INTERNAL_ERROR, e.to_string()),
                 }
             }
             ResourcePath::ClusterStatus => {
-                match self.handle_get_cluster_status(GetClusterStatusInput::default()).await {
+                match self
+                    .handle_get_cluster_status(GetClusterStatusInput::default())
+                    .await
+                {
                     Ok(status) => serde_json::to_string_pretty(&status).unwrap_or_default(),
                     Err(e) => return JsonRpcResponse::error(id, INTERNAL_ERROR, e),
                 }
             }
             ResourcePath::ClusterMetrics => {
-                match self.handle_get_cluster_status(GetClusterStatusInput::default()).await {
+                match self
+                    .handle_get_cluster_status(GetClusterStatusInput::default())
+                    .await
+                {
                     Ok(status) => {
                         let metrics = serde_json::json!({
                             "total_cpu_capacity": status.total_cpu_capacity,
@@ -895,11 +938,8 @@ where
                 Ok(r) => r,
                 Err(e) => {
                     error!(error = %e, "Failed to parse request");
-                    let response = JsonRpcResponse::error(
-                        None,
-                        PARSE_ERROR,
-                        format!("Parse error: {}", e),
-                    );
+                    let response =
+                        JsonRpcResponse::error(None, PARSE_ERROR, format!("Parse error: {}", e));
                     let response_json = serde_json::to_string(&response)?;
                     stdout.write_all(response_json.as_bytes()).await?;
                     stdout.write_all(b"\n").await?;
@@ -933,22 +973,95 @@ mod tests {
 
     #[async_trait::async_trait]
     impl StateStore for DummyStateStore {
-        async fn initialize(&self) -> orchestrator_shared_types::Result<()> { Ok(()) }
-        async fn health_check(&self) -> orchestrator_shared_types::Result<bool> { Ok(true) }
-        async fn put_node(&self, _: orchestrator_shared_types::Node) -> orchestrator_shared_types::Result<()> { Ok(()) }
-        async fn get_node(&self, _: &orchestrator_shared_types::NodeId) -> orchestrator_shared_types::Result<Option<orchestrator_shared_types::Node>> { Ok(None) }
-        async fn list_nodes(&self) -> orchestrator_shared_types::Result<Vec<orchestrator_shared_types::Node>> { Ok(vec![]) }
-        async fn delete_node(&self, _: &orchestrator_shared_types::NodeId) -> orchestrator_shared_types::Result<()> { Ok(()) }
-        async fn put_workload(&self, _: orchestrator_shared_types::WorkloadDefinition) -> orchestrator_shared_types::Result<()> { Ok(()) }
-        async fn get_workload(&self, _: &orchestrator_shared_types::WorkloadId) -> orchestrator_shared_types::Result<Option<orchestrator_shared_types::WorkloadDefinition>> { Ok(None) }
-        async fn list_workloads(&self) -> orchestrator_shared_types::Result<Vec<orchestrator_shared_types::WorkloadDefinition>> { Ok(vec![]) }
-        async fn delete_workload(&self, _: &orchestrator_shared_types::WorkloadId) -> orchestrator_shared_types::Result<()> { Ok(()) }
-        async fn put_instance(&self, _: orchestrator_shared_types::WorkloadInstance) -> orchestrator_shared_types::Result<()> { Ok(()) }
-        async fn get_instance(&self, _: &str) -> orchestrator_shared_types::Result<Option<orchestrator_shared_types::WorkloadInstance>> { Ok(None) }
-        async fn list_instances_for_workload(&self, _: &orchestrator_shared_types::WorkloadId) -> orchestrator_shared_types::Result<Vec<orchestrator_shared_types::WorkloadInstance>> { Ok(vec![]) }
-        async fn list_all_instances(&self) -> orchestrator_shared_types::Result<Vec<orchestrator_shared_types::WorkloadInstance>> { Ok(vec![]) }
-        async fn delete_instance(&self, _: &str) -> orchestrator_shared_types::Result<()> { Ok(()) }
-        async fn delete_instances_for_workload(&self, _: &orchestrator_shared_types::WorkloadId) -> orchestrator_shared_types::Result<()> { Ok(()) }
+        async fn initialize(&self) -> orchestrator_shared_types::Result<()> {
+            Ok(())
+        }
+        async fn health_check(&self) -> orchestrator_shared_types::Result<bool> {
+            Ok(true)
+        }
+        async fn put_node(
+            &self,
+            _: orchestrator_shared_types::Node,
+        ) -> orchestrator_shared_types::Result<()> {
+            Ok(())
+        }
+        async fn get_node(
+            &self,
+            _: &orchestrator_shared_types::NodeId,
+        ) -> orchestrator_shared_types::Result<Option<orchestrator_shared_types::Node>> {
+            Ok(None)
+        }
+        async fn list_nodes(
+            &self,
+        ) -> orchestrator_shared_types::Result<Vec<orchestrator_shared_types::Node>> {
+            Ok(vec![])
+        }
+        async fn delete_node(
+            &self,
+            _: &orchestrator_shared_types::NodeId,
+        ) -> orchestrator_shared_types::Result<()> {
+            Ok(())
+        }
+        async fn put_workload(
+            &self,
+            _: orchestrator_shared_types::WorkloadDefinition,
+        ) -> orchestrator_shared_types::Result<()> {
+            Ok(())
+        }
+        async fn get_workload(
+            &self,
+            _: &orchestrator_shared_types::WorkloadId,
+        ) -> orchestrator_shared_types::Result<Option<orchestrator_shared_types::WorkloadDefinition>>
+        {
+            Ok(None)
+        }
+        async fn list_workloads(
+            &self,
+        ) -> orchestrator_shared_types::Result<Vec<orchestrator_shared_types::WorkloadDefinition>>
+        {
+            Ok(vec![])
+        }
+        async fn delete_workload(
+            &self,
+            _: &orchestrator_shared_types::WorkloadId,
+        ) -> orchestrator_shared_types::Result<()> {
+            Ok(())
+        }
+        async fn put_instance(
+            &self,
+            _: orchestrator_shared_types::WorkloadInstance,
+        ) -> orchestrator_shared_types::Result<()> {
+            Ok(())
+        }
+        async fn get_instance(
+            &self,
+            _: &str,
+        ) -> orchestrator_shared_types::Result<Option<orchestrator_shared_types::WorkloadInstance>>
+        {
+            Ok(None)
+        }
+        async fn list_instances_for_workload(
+            &self,
+            _: &orchestrator_shared_types::WorkloadId,
+        ) -> orchestrator_shared_types::Result<Vec<orchestrator_shared_types::WorkloadInstance>>
+        {
+            Ok(vec![])
+        }
+        async fn list_all_instances(
+            &self,
+        ) -> orchestrator_shared_types::Result<Vec<orchestrator_shared_types::WorkloadInstance>>
+        {
+            Ok(vec![])
+        }
+        async fn delete_instance(&self, _: &str) -> orchestrator_shared_types::Result<()> {
+            Ok(())
+        }
+        async fn delete_instances_for_workload(
+            &self,
+            _: &orchestrator_shared_types::WorkloadId,
+        ) -> orchestrator_shared_types::Result<()> {
+            Ok(())
+        }
     }
 
     #[derive(Clone)]
@@ -956,10 +1069,25 @@ mod tests {
 
     #[async_trait::async_trait]
     impl ClusterManager for DummyClusterManager {
-        async fn initialize(&self) -> orchestrator_shared_types::Result<()> { Ok(()) }
-        async fn get_node(&self, _: &orchestrator_shared_types::NodeId) -> orchestrator_shared_types::Result<Option<orchestrator_shared_types::Node>> { Ok(None) }
-        async fn list_nodes(&self) -> orchestrator_shared_types::Result<Vec<orchestrator_shared_types::Node>> { Ok(vec![]) }
-        async fn subscribe_to_events(&self) -> orchestrator_shared_types::Result<tokio::sync::broadcast::Receiver<cluster_manager_interface::ClusterEvent>> {
+        async fn initialize(&self) -> orchestrator_shared_types::Result<()> {
+            Ok(())
+        }
+        async fn get_node(
+            &self,
+            _: &orchestrator_shared_types::NodeId,
+        ) -> orchestrator_shared_types::Result<Option<orchestrator_shared_types::Node>> {
+            Ok(None)
+        }
+        async fn list_nodes(
+            &self,
+        ) -> orchestrator_shared_types::Result<Vec<orchestrator_shared_types::Node>> {
+            Ok(vec![])
+        }
+        async fn subscribe_to_events(
+            &self,
+        ) -> orchestrator_shared_types::Result<
+            tokio::sync::broadcast::Receiver<cluster_manager_interface::ClusterEvent>,
+        > {
             let (tx, rx) = tokio::sync::broadcast::channel(16);
             let _ = tx;
             Ok(rx)

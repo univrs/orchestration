@@ -38,28 +38,28 @@
 //! - **credit**: Economic/credit transactions
 //! - **septal**: Coordination barriers and synchronization
 
-pub mod tracing_setup;
-pub mod metrics;
-pub mod health;
-pub mod server;
 pub mod events;
-pub mod websocket;
-pub mod network_messages;
+pub mod health;
+pub mod metrics;
 pub mod network_bridge;
+pub mod network_messages;
+pub mod server;
+pub mod tracing_setup;
+pub mod websocket;
 
-pub use tracing_setup::{init_tracing, TracingConfig};
-pub use metrics::{OrchestratorMetrics, MetricsRegistry};
-pub use health::{HealthChecker, HealthStatus, ComponentHealth};
-pub use server::{ObservabilityServer, ObservabilityConfig};
-pub use events::{EventHub, EventTopic, StreamEvent, EventType};
-pub use websocket::{events_handler, events_handler_with_bridge, WebSocketState};
-pub use network_messages::{
-    NetworkMessage, GradientMessage, ElectionMessage, CreditMessage, SeptalMessage,
-};
+pub use events::{EventHub, EventTopic, EventType, StreamEvent};
+pub use health::{ComponentHealth, HealthChecker, HealthStatus};
+pub use metrics::{MetricsRegistry, OrchestratorMetrics};
 pub use network_bridge::{
-    NetworkEventBridge, NetworkBridgeConfig, NetworkBridgeStats,
-    PubSubNetwork, MockPubSubNetwork, NetworkError,
+    MockPubSubNetwork, NetworkBridgeConfig, NetworkBridgeStats, NetworkError, NetworkEventBridge,
+    PubSubNetwork,
 };
+pub use network_messages::{
+    CreditMessage, ElectionMessage, GradientMessage, NetworkMessage, SeptalMessage,
+};
+pub use server::{ObservabilityConfig, ObservabilityServer};
+pub use tracing_setup::{init_tracing, TracingConfig};
+pub use websocket::{events_handler, events_handler_with_bridge, WebSocketState};
 
 /// Re-export tracing macros for convenience
-pub use tracing::{debug, error, info, instrument, trace, warn, span, Level};
+pub use tracing::{debug, error, info, instrument, span, trace, warn, Level};

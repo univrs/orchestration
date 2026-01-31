@@ -170,10 +170,8 @@ impl ObservabilityServer {
 
     /// Set a custom event hub.
     pub fn with_event_hub(mut self, event_hub: EventHub) -> Self {
-        self.state = ObservabilityState::with_event_hub(
-            self.state.health_checker.clone(),
-            event_hub,
-        );
+        self.state =
+            ObservabilityState::with_event_hub(self.state.health_checker.clone(), event_hub);
         self
     }
 
@@ -224,10 +222,8 @@ impl ObservabilityServer {
         // Create the events API router with appropriate state
         // Use P2P-enabled handler when network bridge is available
         let events_router = if let Some(ref bridge) = self.state.network_bridge {
-            let ws_state = WebSocketState::with_network_bridge(
-                self.state.event_hub.clone(),
-                bridge.clone(),
-            );
+            let ws_state =
+                WebSocketState::with_network_bridge(self.state.event_hub.clone(), bridge.clone());
             Router::new()
                 .route("/events", get(events_ws_handler_with_bridge))
                 .with_state(ws_state)
@@ -370,10 +366,7 @@ mod tests {
 
     async fn setup_test_server() -> Router {
         let health_checker = HealthChecker::new("test-service", "1.0.0");
-        let mut server = ObservabilityServer::new(
-            ObservabilityConfig::default(),
-            health_checker,
-        );
+        let mut server = ObservabilityServer::new(ObservabilityConfig::default(), health_checker);
         server.router()
     }
 
@@ -382,7 +375,12 @@ mod tests {
         let router = setup_test_server().await;
 
         let response = router
-            .oneshot(Request::builder().uri("/health").body(Body::empty()).unwrap())
+            .oneshot(
+                Request::builder()
+                    .uri("/health")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
             .await
             .unwrap();
 
@@ -395,7 +393,12 @@ mod tests {
         let router = setup_test_server().await;
 
         let response = router
-            .oneshot(Request::builder().uri("/healthz").body(Body::empty()).unwrap())
+            .oneshot(
+                Request::builder()
+                    .uri("/healthz")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
             .await
             .unwrap();
 
@@ -405,16 +408,19 @@ mod tests {
     #[tokio::test]
     async fn test_ready_endpoint() {
         let health_checker = HealthChecker::new("test", "1.0.0");
-        let mut server = ObservabilityServer::new(
-            ObservabilityConfig::default(),
-            health_checker.clone(),
-        );
+        let mut server =
+            ObservabilityServer::new(ObservabilityConfig::default(), health_checker.clone());
         let router = server.router();
 
         // Initially not ready
         let response = router
             .clone()
-            .oneshot(Request::builder().uri("/ready").body(Body::empty()).unwrap())
+            .oneshot(
+                Request::builder()
+                    .uri("/ready")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
@@ -422,7 +428,12 @@ mod tests {
         // Mark ready
         health_checker.set_ready().await;
         let response = router
-            .oneshot(Request::builder().uri("/ready").body(Body::empty()).unwrap())
+            .oneshot(
+                Request::builder()
+                    .uri("/ready")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
@@ -446,7 +457,12 @@ mod tests {
         let router = setup_test_server().await;
 
         let response = router
-            .oneshot(Request::builder().uri("/metrics").body(Body::empty()).unwrap())
+            .oneshot(
+                Request::builder()
+                    .uri("/metrics")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
             .await
             .unwrap();
 

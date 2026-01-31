@@ -37,23 +37,23 @@
 //! }
 //! ```
 
-pub mod identity;
-pub mod encryption;
-pub mod trust_policy;
 pub mod automation;
-pub mod resources;
-pub mod paths;
 pub mod config;
+pub mod encryption;
 mod error;
+pub mod identity;
+pub mod paths;
+pub mod resources;
+pub mod trust_policy;
 
-pub use config::UserConfig;
-pub use identity::Identity;
-pub use encryption::SecretStore;
-pub use trust_policy::TrustPolicy;
 pub use automation::{AutomationBoundary, AutomationLevel};
-pub use resources::ResourceLimits;
-pub use paths::ConfigPaths;
+pub use config::UserConfig;
+pub use encryption::SecretStore;
 pub use error::{ConfigError, Result};
+pub use identity::Identity;
+pub use paths::ConfigPaths;
+pub use resources::ResourceLimits;
+pub use trust_policy::TrustPolicy;
 
 /// Application name used for XDG paths
 pub const APP_NAME: &str = "univrs";

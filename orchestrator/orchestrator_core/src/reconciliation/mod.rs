@@ -43,15 +43,15 @@
 //! loop_instance.run_cycle(&desired, &scope).await?;
 //! ```
 
-pub mod sense;
+pub mod actuate;
 pub mod compare;
 pub mod plan;
-pub mod actuate;
+pub mod sense;
 
-pub use sense::{CurrentState as SenseCurrentState, Sensor, SenseScope, SenseOperation};
-pub use compare::{DesiredState, Diff, Comparator, CompareResult, CurrentState};
-pub use plan::{ReconciliationPlan, Action, ActionSequence, Planner};
-pub use actuate::{Actuator, ExecutionOutcome, ActuationEvent};
+pub use actuate::{ActuationEvent, Actuator, ExecutionOutcome};
+pub use compare::{Comparator, CompareResult, CurrentState, DesiredState, Diff};
+pub use plan::{Action, ActionSequence, Planner, ReconciliationPlan};
+pub use sense::{CurrentState as SenseCurrentState, SenseOperation, SenseScope, Sensor};
 
 use std::fmt;
 use tracing::{debug, error};

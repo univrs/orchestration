@@ -5,7 +5,7 @@
 
 use async_trait::async_trait;
 use orchestrator_shared_types::{
-    Node, NodeId, Result, OrchestrationError, WorkloadDefinition, WorkloadId, WorkloadInstance,
+    Node, NodeId, OrchestrationError, Result, WorkloadDefinition, WorkloadId, WorkloadInstance,
 };
 use std::path::Path;
 use std::sync::Arc;
@@ -245,7 +245,7 @@ impl StateStore for SqliteStateStore {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use orchestrator_shared_types::{NodeResources, NodeStatus, WorkloadInstanceStatus, Keypair};
+    use orchestrator_shared_types::{Keypair, NodeResources, NodeStatus, WorkloadInstanceStatus};
     use std::collections::HashMap;
     use uuid::Uuid;
 
@@ -341,7 +341,10 @@ mod tests {
         let retrieved = store.get_instance(&instance_id).await.unwrap();
         assert!(retrieved.is_some());
 
-        let instances = store.list_instances_for_workload(&workload_id).await.unwrap();
+        let instances = store
+            .list_instances_for_workload(&workload_id)
+            .await
+            .unwrap();
         assert_eq!(instances.len(), 1);
 
         store.delete_instance(&instance_id).await.unwrap();

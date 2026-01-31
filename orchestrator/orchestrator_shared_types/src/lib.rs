@@ -62,10 +62,10 @@ pub enum NodeStatus {
 // Represents available/requested resources on a node or for a workload
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct NodeResources {
-    pub cpu_cores: f32,    // e.g., 2.0 for 2 cores, 0.5 for half a core
-    pub memory_mb: u64,    // Memory in Megabytes
-    pub disk_mb: u64,      // Disk space in Megabytes
-    // Potentially GPU resources, custom resources, etc.
+    pub cpu_cores: f32, // e.g., 2.0 for 2 cores, 0.5 for half a core
+    pub memory_mb: u64, // Memory in Megabytes
+    pub disk_mb: u64,   // Disk space in Megabytes
+                        // Potentially GPU resources, custom resources, etc.
 }
 
 // Configuration for a single container within a workload
@@ -96,7 +96,7 @@ pub struct WorkloadDefinition {
     pub containers: Vec<ContainerConfig>,
     pub replicas: u32,
     pub labels: HashMap<String, String>, // For scheduling, selection
-    // Placement constraints, update strategy, etc.
+                                         // Placement constraints, update strategy, etc.
 }
 
 // Represents an instance of a workload running on a specific node

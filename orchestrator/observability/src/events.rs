@@ -31,12 +31,11 @@ use uuid::Uuid;
 
 use cluster_manager_interface::ClusterEvent;
 use orchestrator_shared_types::{
-    Node, NodeId, WorkloadDefinition, WorkloadId, WorkloadInstance,
-    WorkloadInstanceStatus,
+    Node, NodeId, WorkloadDefinition, WorkloadId, WorkloadInstance, WorkloadInstanceStatus,
 };
 
 #[cfg(test)]
-use orchestrator_shared_types::{NodeStatus, Keypair};
+use orchestrator_shared_types::{Keypair, NodeStatus};
 
 /// Event topics that clients can subscribe to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -114,22 +113,10 @@ impl EventTopic {
                 EventType::ClusterHealthChanged | EventType::ClusterCapacityChanged
             ),
             // P2P network topics
-            EventTopic::Gradient => matches!(
-                event.event_type,
-                EventType::ResourceGradientUpdate
-            ),
-            EventTopic::Election => matches!(
-                event.event_type,
-                EventType::LeaderElectionMessage
-            ),
-            EventTopic::Credit => matches!(
-                event.event_type,
-                EventType::CreditTransaction
-            ),
-            EventTopic::Septal => matches!(
-                event.event_type,
-                EventType::SeptalCoordination
-            ),
+            EventTopic::Gradient => matches!(event.event_type, EventType::ResourceGradientUpdate),
+            EventTopic::Election => matches!(event.event_type, EventType::LeaderElectionMessage),
+            EventTopic::Credit => matches!(event.event_type, EventType::CreditTransaction),
+            EventTopic::Septal => matches!(event.event_type, EventType::SeptalCoordination),
         }
     }
 }
@@ -257,7 +244,9 @@ impl StreamEvent {
     /// Create from a ClusterEvent.
     pub fn from_cluster_event(event: &ClusterEvent) -> Self {
         match event {
-            ClusterEvent::NodeAdded(node) => Self::new(EventType::NodeAdded, NodeEventData::from(node)),
+            ClusterEvent::NodeAdded(node) => {
+                Self::new(EventType::NodeAdded, NodeEventData::from(node))
+            }
             ClusterEvent::NodeRemoved(node_id) => Self::new(
                 EventType::NodeRemoved,
                 serde_json::json!({ "node_id": node_id }),
@@ -374,7 +363,6 @@ pub enum ClientMessage {
     Ping,
 
     // P2P Network Actions
-
     /// Publish a gradient message to the network.
     PublishGradient {
         /// CPU availability (0.0-1.0).
@@ -556,7 +544,12 @@ impl EventHub {
     }
 
     /// Update client subscription.
-    pub async fn update_subscription(&self, client_id: &str, topics: &[EventTopic], subscribe: bool) {
+    pub async fn update_subscription(
+        &self,
+        client_id: &str,
+        topics: &[EventTopic],
+        subscribe: bool,
+    ) {
         let mut subs = self.subscriptions.write().await;
         if let Some(sub) = subs.get_mut(client_id) {
             if subscribe {
@@ -614,13 +607,19 @@ impl EventHub {
 
     /// Broadcast a workload created event.
     pub async fn broadcast_workload_created(&self, workload: &WorkloadDefinition) {
-        let event = StreamEvent::new(EventType::WorkloadCreated, WorkloadEventData::from(workload));
+        let event = StreamEvent::new(
+            EventType::WorkloadCreated,
+            WorkloadEventData::from(workload),
+        );
         self.broadcast(event).await;
     }
 
     /// Broadcast a workload updated event.
     pub async fn broadcast_workload_updated(&self, workload: &WorkloadDefinition) {
-        let event = StreamEvent::new(EventType::WorkloadUpdated, WorkloadEventData::from(workload));
+        let event = StreamEvent::new(
+            EventType::WorkloadUpdated,
+            WorkloadEventData::from(workload),
+        );
         self.broadcast(event).await;
     }
 
@@ -706,7 +705,8 @@ mod tests {
     fn test_event_topic_matches() {
         let node_event = StreamEvent::new(EventType::NodeAdded, serde_json::json!({}));
         let workload_event = StreamEvent::new(EventType::WorkloadCreated, serde_json::json!({}));
-        let cluster_event = StreamEvent::new(EventType::ClusterHealthChanged, serde_json::json!({}));
+        let cluster_event =
+            StreamEvent::new(EventType::ClusterHealthChanged, serde_json::json!({}));
 
         assert!(EventTopic::Nodes.matches(&node_event));
         assert!(!EventTopic::Nodes.matches(&workload_event));
@@ -771,7 +771,8 @@ mod tests {
         hub.register_client("client-1".to_string()).await;
         assert_eq!(hub.active_connections().await, 1);
 
-        hub.update_subscription("client-1", &[EventTopic::Nodes], true).await;
+        hub.update_subscription("client-1", &[EventTopic::Nodes], true)
+            .await;
         let topics = hub.get_subscription("client-1").await.unwrap();
         assert!(topics.contains(&EventTopic::Nodes));
 
@@ -784,8 +785,16 @@ mod tests {
         let hub = EventHub::new(16);
         let _rx = hub.subscribe();
 
-        hub.broadcast(StreamEvent::new(EventType::NodeAdded, serde_json::json!({}))).await;
-        hub.broadcast(StreamEvent::new(EventType::NodeAdded, serde_json::json!({}))).await;
+        hub.broadcast(StreamEvent::new(
+            EventType::NodeAdded,
+            serde_json::json!({}),
+        ))
+        .await;
+        hub.broadcast(StreamEvent::new(
+            EventType::NodeAdded,
+            serde_json::json!({}),
+        ))
+        .await;
 
         let metrics = hub.get_metrics().await;
         assert_eq!(metrics.total_events_broadcast, 2);

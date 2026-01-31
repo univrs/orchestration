@@ -97,8 +97,14 @@ impl From<NodeResponse> for NodeDisplay {
             id: n.id[..8.min(n.id.len())].to_string(),
             status: n.status,
             address: n.address,
-            cpu_allocatable: format!("{:.1}/{:.1}", n.resources_allocatable.cpu_cores, n.resources_capacity.cpu_cores),
-            memory_allocatable: format!("{}/{} MB", n.resources_allocatable.memory_mb, n.resources_capacity.memory_mb),
+            cpu_allocatable: format!(
+                "{:.1}/{:.1}",
+                n.resources_allocatable.cpu_cores, n.resources_capacity.cpu_cores
+            ),
+            memory_allocatable: format!(
+                "{}/{} MB",
+                n.resources_allocatable.memory_mb, n.resources_capacity.memory_mb
+            ),
         }
     }
 }
@@ -160,7 +166,11 @@ impl From<&WorkloadResponse> for WorkloadDisplay {
             id: w.id[..8.min(w.id.len())].to_string(),
             name: w.name.clone(),
             replicas: w.replicas,
-            image: w.containers.first().map(|c| c.image.clone()).unwrap_or_else(|| "-".to_string()),
+            image: w
+                .containers
+                .first()
+                .map(|c| c.image.clone())
+                .unwrap_or_else(|| "-".to_string()),
         }
     }
 }
@@ -207,7 +217,10 @@ pub async fn execute(args: StatusArgs, api_url: &str, format: OutputFormat) -> a
     let client = match ApiClient::authenticated(api_url).await {
         Ok(c) => c,
         Err(e) => {
-            output::warn(&format!("Could not load identity for authentication: {}", e));
+            output::warn(&format!(
+                "Could not load identity for authentication: {}",
+                e
+            ));
             output::info("Using unauthenticated client (some endpoints may fail)");
             ApiClient::new(api_url)
         }
@@ -215,17 +228,29 @@ pub async fn execute(args: StatusArgs, api_url: &str, format: OutputFormat) -> a
 
     // Show cluster status first (unless filtering)
     if !args.nodes_only && !args.workloads_only {
-        match client.get::<ClusterStatusResponse>("/api/v1/cluster/status").await {
+        match client
+            .get::<ClusterStatusResponse>("/api/v1/cluster/status")
+            .await
+        {
             Ok(status) => {
                 section("Cluster Status");
-                println!("  Nodes:       {}/{} ready", status.ready_nodes, status.total_nodes);
+                println!(
+                    "  Nodes:       {}/{} ready",
+                    status.ready_nodes, status.total_nodes
+                );
                 println!("  Workloads:   {}", status.total_workloads);
-                println!("  Instances:   {} running, {} pending, {} failed",
-                    status.running_instances, status.pending_instances, status.failed_instances);
-                println!("  CPU:         {:.1}/{:.1} cores allocatable",
-                    status.total_cpu_allocatable, status.total_cpu_capacity);
-                println!("  Memory:      {}/{} MB allocatable",
-                    status.total_memory_allocatable_mb, status.total_memory_mb);
+                println!(
+                    "  Instances:   {} running, {} pending, {} failed",
+                    status.running_instances, status.pending_instances, status.failed_instances
+                );
+                println!(
+                    "  CPU:         {:.1}/{:.1} cores allocatable",
+                    status.total_cpu_allocatable, status.total_cpu_capacity
+                );
+                println!(
+                    "  Memory:      {}/{} MB allocatable",
+                    status.total_memory_allocatable_mb, status.total_memory_mb
+                );
             }
             Err(e) => {
                 output::error(&format!("Failed to get cluster status: {}", e));
@@ -236,9 +261,13 @@ pub async fn execute(args: StatusArgs, api_url: &str, format: OutputFormat) -> a
     // Show nodes
     if !args.workloads_only {
         section("Nodes");
-        match client.get::<ListResponse<NodeResponse>>("/api/v1/nodes").await {
+        match client
+            .get::<ListResponse<NodeResponse>>("/api/v1/nodes")
+            .await
+        {
             Ok(response) => {
-                let displays: Vec<NodeDisplay> = response.items.into_iter().map(Into::into).collect();
+                let displays: Vec<NodeDisplay> =
+                    response.items.into_iter().map(Into::into).collect();
                 print_data(&displays, format)?;
             }
             Err(e) => {
@@ -250,7 +279,10 @@ pub async fn execute(args: StatusArgs, api_url: &str, format: OutputFormat) -> a
     // Show workloads
     if !args.nodes_only {
         section("Workloads");
-        match client.get::<ListResponse<WorkloadResponse>>("/api/v1/workloads").await {
+        match client
+            .get::<ListResponse<WorkloadResponse>>("/api/v1/workloads")
+            .await
+        {
             Ok(response) => {
                 let workloads = response.items;
                 let filtered: Vec<_> = if let Some(ref name) = args.workload {
@@ -273,8 +305,13 @@ pub async fn execute(args: StatusArgs, api_url: &str, format: OutputFormat) -> a
                         match client.get::<ListResponse<InstanceResponse>>(&path).await {
                             Ok(inst_response) => {
                                 if !inst_response.items.is_empty() {
-                                    println!("\n  Workload: {} ({})", workload.name, &workload.id[..8]);
-                                    let displays: Vec<InstanceDisplay> = inst_response.items.into_iter().map(Into::into).collect();
+                                    println!(
+                                        "\n  Workload: {} ({})",
+                                        workload.name,
+                                        &workload.id[..8]
+                                    );
+                                    let displays: Vec<InstanceDisplay> =
+                                        inst_response.items.into_iter().map(Into::into).collect();
                                     print_data(&displays, format)?;
                                 }
                             }

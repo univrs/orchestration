@@ -111,7 +111,10 @@ impl StateStore for InMemoryStateStore {
         Ok(instances.get(instance_id).cloned())
     }
 
-    async fn list_instances_for_workload(&self, workload_id: &WorkloadId) -> Result<Vec<WorkloadInstance>> {
+    async fn list_instances_for_workload(
+        &self,
+        workload_id: &WorkloadId,
+    ) -> Result<Vec<WorkloadInstance>> {
         let instances = self.instances.read().await;
         Ok(instances
             .values()
@@ -150,7 +153,7 @@ impl StateStore for InMemoryStateStore {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use orchestrator_shared_types::{NodeStatus, NodeResources, WorkloadInstanceStatus, Keypair};
+    use orchestrator_shared_types::{Keypair, NodeResources, NodeStatus, WorkloadInstanceStatus};
     use std::collections::HashMap;
     use uuid::Uuid;
 
@@ -253,7 +256,10 @@ mod tests {
         assert_eq!(retrieved.unwrap().id, instance.id);
 
         // List instances for workload
-        let instances = store.list_instances_for_workload(&workload_id).await.unwrap();
+        let instances = store
+            .list_instances_for_workload(&workload_id)
+            .await
+            .unwrap();
         assert_eq!(instances.len(), 1);
 
         // Delete instance
@@ -360,17 +366,33 @@ mod tests {
             address: "10.0.0.1:8080".to_string(),
             status: NodeStatus::Ready,
             labels: HashMap::new(),
-            resources_capacity: NodeResources { cpu_cores: 4.0, memory_mb: 8192, disk_mb: 100000 },
-            resources_allocatable: NodeResources { cpu_cores: 4.0, memory_mb: 8192, disk_mb: 100000 },
+            resources_capacity: NodeResources {
+                cpu_cores: 4.0,
+                memory_mb: 8192,
+                disk_mb: 100000,
+            },
+            resources_allocatable: NodeResources {
+                cpu_cores: 4.0,
+                memory_mb: 8192,
+                disk_mb: 100000,
+            },
         };
 
         let node_v2 = Node {
             id: node_id,
             address: "10.0.0.2:9090".to_string(), // Changed address
-            status: NodeStatus::NotReady,          // Changed status
+            status: NodeStatus::NotReady,         // Changed status
             labels: HashMap::new(),
-            resources_capacity: NodeResources { cpu_cores: 8.0, memory_mb: 16384, disk_mb: 200000 },
-            resources_allocatable: NodeResources { cpu_cores: 7.5, memory_mb: 15000, disk_mb: 180000 },
+            resources_capacity: NodeResources {
+                cpu_cores: 8.0,
+                memory_mb: 16384,
+                disk_mb: 200000,
+            },
+            resources_allocatable: NodeResources {
+                cpu_cores: 7.5,
+                memory_mb: 15000,
+                disk_mb: 180000,
+            },
         };
 
         store.put_node(node_v1).await.unwrap();
@@ -440,7 +462,11 @@ mod tests {
         store.put_instance(instance_v1).await.unwrap();
         store.put_instance(instance_v2).await.unwrap();
 
-        let retrieved = store.get_instance(&instance_id.to_string()).await.unwrap().unwrap();
+        let retrieved = store
+            .get_instance(&instance_id.to_string())
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(retrieved.status, WorkloadInstanceStatus::Running);
         assert_eq!(retrieved.container_ids.len(), 2);
         assert_eq!(store.list_all_instances().await.unwrap().len(), 1);
@@ -458,8 +484,16 @@ mod tests {
                 address: format!("10.0.0.{}:8080", i),
                 status: NodeStatus::Ready,
                 labels: HashMap::new(),
-                resources_capacity: NodeResources { cpu_cores: 4.0, memory_mb: 8192, disk_mb: 100000 },
-                resources_allocatable: NodeResources { cpu_cores: 4.0, memory_mb: 8192, disk_mb: 100000 },
+                resources_capacity: NodeResources {
+                    cpu_cores: 4.0,
+                    memory_mb: 8192,
+                    disk_mb: 100000,
+                },
+                resources_allocatable: NodeResources {
+                    cpu_cores: 4.0,
+                    memory_mb: 8192,
+                    disk_mb: 100000,
+                },
             };
             store.put_node(node).await.unwrap();
         }
@@ -519,11 +553,17 @@ mod tests {
         }
 
         // Verify filtering by workload
-        let w1_instances = store.list_instances_for_workload(&workload_1_id).await.unwrap();
+        let w1_instances = store
+            .list_instances_for_workload(&workload_1_id)
+            .await
+            .unwrap();
         assert_eq!(w1_instances.len(), 3);
         assert!(w1_instances.iter().all(|i| i.workload_id == workload_1_id));
 
-        let w2_instances = store.list_instances_for_workload(&workload_2_id).await.unwrap();
+        let w2_instances = store
+            .list_instances_for_workload(&workload_2_id)
+            .await
+            .unwrap();
         assert_eq!(w2_instances.len(), 2);
         assert!(w2_instances.iter().all(|i| i.workload_id == workload_2_id));
 
@@ -582,29 +622,38 @@ mod tests {
 
         // Create instances for both workloads
         for _ in 0..3 {
-            store.put_instance(WorkloadInstance {
-                id: Uuid::new_v4(),
-                workload_id: workload_to_delete,
-                node_id: generate_node_id(),
-                container_ids: vec![],
-                status: WorkloadInstanceStatus::Running,
-            }).await.unwrap();
+            store
+                .put_instance(WorkloadInstance {
+                    id: Uuid::new_v4(),
+                    workload_id: workload_to_delete,
+                    node_id: generate_node_id(),
+                    container_ids: vec![],
+                    status: WorkloadInstanceStatus::Running,
+                })
+                .await
+                .unwrap();
         }
 
         for _ in 0..2 {
-            store.put_instance(WorkloadInstance {
-                id: Uuid::new_v4(),
-                workload_id: workload_to_keep,
-                node_id: generate_node_id(),
-                container_ids: vec![],
-                status: WorkloadInstanceStatus::Running,
-            }).await.unwrap();
+            store
+                .put_instance(WorkloadInstance {
+                    id: Uuid::new_v4(),
+                    workload_id: workload_to_keep,
+                    node_id: generate_node_id(),
+                    container_ids: vec![],
+                    status: WorkloadInstanceStatus::Running,
+                })
+                .await
+                .unwrap();
         }
 
         assert_eq!(store.list_all_instances().await.unwrap().len(), 5);
 
         // Delete instances for one workload
-        store.delete_instances_for_workload(&workload_to_delete).await.unwrap();
+        store
+            .delete_instances_for_workload(&workload_to_delete)
+            .await
+            .unwrap();
 
         // Only instances from workload_to_keep should remain
         let remaining = store.list_all_instances().await.unwrap();
@@ -612,7 +661,10 @@ mod tests {
         assert!(remaining.iter().all(|i| i.workload_id == workload_to_keep));
 
         // Deleting again should be idempotent
-        store.delete_instances_for_workload(&workload_to_delete).await.unwrap();
+        store
+            .delete_instances_for_workload(&workload_to_delete)
+            .await
+            .unwrap();
         assert_eq!(store.list_all_instances().await.unwrap().len(), 2);
     }
 
@@ -626,14 +678,25 @@ mod tests {
 
         // Pre-populate with data
         for i in 0..10 {
-            store.put_node(Node {
-                id: generate_node_id(),
-                address: format!("10.0.0.{}:8080", i),
-                status: NodeStatus::Ready,
-                labels: HashMap::new(),
-                resources_capacity: NodeResources { cpu_cores: 4.0, memory_mb: 8192, disk_mb: 100000 },
-                resources_allocatable: NodeResources { cpu_cores: 4.0, memory_mb: 8192, disk_mb: 100000 },
-            }).await.unwrap();
+            store
+                .put_node(Node {
+                    id: generate_node_id(),
+                    address: format!("10.0.0.{}:8080", i),
+                    status: NodeStatus::Ready,
+                    labels: HashMap::new(),
+                    resources_capacity: NodeResources {
+                        cpu_cores: 4.0,
+                        memory_mb: 8192,
+                        disk_mb: 100000,
+                    },
+                    resources_allocatable: NodeResources {
+                        cpu_cores: 4.0,
+                        memory_mb: 8192,
+                        disk_mb: 100000,
+                    },
+                })
+                .await
+                .unwrap();
         }
 
         // Spawn multiple concurrent readers
@@ -655,8 +718,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_concurrent_writes() {
-        use std::sync::Arc;
         use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::Arc;
 
         let store = Arc::new(InMemoryStateStore::new());
         let counter = Arc::new(AtomicUsize::new(0));
@@ -673,8 +736,16 @@ mod tests {
                         address: "10.0.0.1:8080".to_string(),
                         status: NodeStatus::Ready,
                         labels: HashMap::new(),
-                        resources_capacity: NodeResources { cpu_cores: 4.0, memory_mb: 8192, disk_mb: 100000 },
-                        resources_allocatable: NodeResources { cpu_cores: 4.0, memory_mb: 8192, disk_mb: 100000 },
+                        resources_capacity: NodeResources {
+                            cpu_cores: 4.0,
+                            memory_mb: 8192,
+                            disk_mb: 100000,
+                        },
+                        resources_allocatable: NodeResources {
+                            cpu_cores: 4.0,
+                            memory_mb: 8192,
+                            disk_mb: 100000,
+                        },
                     };
                     store_clone.put_node(node).await.unwrap();
                     counter_clone.fetch_add(1, Ordering::SeqCst);
@@ -702,14 +773,25 @@ mod tests {
 
         // Pre-populate
         let initial_node_id = Keypair::generate().public_key();
-        store.put_node(Node {
-            id: initial_node_id,
-            address: "initial".to_string(),
-            status: NodeStatus::Ready,
-            labels: HashMap::new(),
-            resources_capacity: NodeResources { cpu_cores: 4.0, memory_mb: 8192, disk_mb: 100000 },
-            resources_allocatable: NodeResources { cpu_cores: 4.0, memory_mb: 8192, disk_mb: 100000 },
-        }).await.unwrap();
+        store
+            .put_node(Node {
+                id: initial_node_id,
+                address: "initial".to_string(),
+                status: NodeStatus::Ready,
+                labels: HashMap::new(),
+                resources_capacity: NodeResources {
+                    cpu_cores: 4.0,
+                    memory_mb: 8192,
+                    disk_mb: 100000,
+                },
+                resources_allocatable: NodeResources {
+                    cpu_cores: 4.0,
+                    memory_mb: 8192,
+                    disk_mb: 100000,
+                },
+            })
+            .await
+            .unwrap();
 
         let mut handles = vec![];
 
@@ -730,14 +812,25 @@ mod tests {
             let store_clone = Arc::clone(&store);
             handles.push(tokio::spawn(async move {
                 for _ in 0..20 {
-                    store_clone.put_node(Node {
-                        id: Keypair::generate().public_key(),
-                        address: "new".to_string(),
-                        status: NodeStatus::Ready,
-                        labels: HashMap::new(),
-                        resources_capacity: NodeResources { cpu_cores: 4.0, memory_mb: 8192, disk_mb: 100000 },
-                        resources_allocatable: NodeResources { cpu_cores: 4.0, memory_mb: 8192, disk_mb: 100000 },
-                    }).await.unwrap();
+                    store_clone
+                        .put_node(Node {
+                            id: Keypair::generate().public_key(),
+                            address: "new".to_string(),
+                            status: NodeStatus::Ready,
+                            labels: HashMap::new(),
+                            resources_capacity: NodeResources {
+                                cpu_cores: 4.0,
+                                memory_mb: 8192,
+                                disk_mb: 100000,
+                            },
+                            resources_allocatable: NodeResources {
+                                cpu_cores: 4.0,
+                                memory_mb: 8192,
+                                disk_mb: 100000,
+                            },
+                        })
+                        .await
+                        .unwrap();
                 }
             }));
         }
@@ -767,8 +860,16 @@ mod tests {
             address: "10.0.0.1:8080".to_string(),
             status: NodeStatus::Ready,
             labels: labels.clone(),
-            resources_capacity: NodeResources { cpu_cores: 16.0, memory_mb: 65536, disk_mb: 1000000 },
-            resources_allocatable: NodeResources { cpu_cores: 15.0, memory_mb: 60000, disk_mb: 900000 },
+            resources_capacity: NodeResources {
+                cpu_cores: 16.0,
+                memory_mb: 65536,
+                disk_mb: 1000000,
+            },
+            resources_allocatable: NodeResources {
+                cpu_cores: 15.0,
+                memory_mb: 60000,
+                disk_mb: 900000,
+            },
         };
 
         store.put_node(node.clone()).await.unwrap();
@@ -776,7 +877,10 @@ mod tests {
         let retrieved = store.get_node(&node.id).await.unwrap().unwrap();
         assert_eq!(retrieved.labels.len(), 3);
         assert_eq!(retrieved.labels.get("env"), Some(&"production".to_string()));
-        assert_eq!(retrieved.labels.get("region"), Some(&"us-west-2".to_string()));
+        assert_eq!(
+            retrieved.labels.get("region"),
+            Some(&"us-west-2".to_string())
+        );
     }
 
     #[tokio::test]
@@ -804,7 +908,11 @@ mod tests {
 
             store.put_instance(instance).await.unwrap();
 
-            let retrieved = store.get_instance(&instance_id.to_string()).await.unwrap().unwrap();
+            let retrieved = store
+                .get_instance(&instance_id.to_string())
+                .await
+                .unwrap()
+                .unwrap();
             assert_eq!(retrieved.status, status);
         }
 
@@ -818,16 +926,22 @@ mod tests {
         let empty_workload_id = Uuid::new_v4();
 
         // Add instances for a different workload
-        store.put_instance(WorkloadInstance {
-            id: Uuid::new_v4(),
-            workload_id: Uuid::new_v4(), // Different workload
-            node_id: generate_node_id(),
-            container_ids: vec![],
-            status: WorkloadInstanceStatus::Running,
-        }).await.unwrap();
+        store
+            .put_instance(WorkloadInstance {
+                id: Uuid::new_v4(),
+                workload_id: Uuid::new_v4(), // Different workload
+                node_id: generate_node_id(),
+                container_ids: vec![],
+                status: WorkloadInstanceStatus::Running,
+            })
+            .await
+            .unwrap();
 
         // Query for empty workload should return empty list
-        let instances = store.list_instances_for_workload(&empty_workload_id).await.unwrap();
+        let instances = store
+            .list_instances_for_workload(&empty_workload_id)
+            .await
+            .unwrap();
         assert!(instances.is_empty());
     }
 }

@@ -12,9 +12,9 @@
 
 #[cfg(feature = "youki-runtime")]
 mod tests {
-    use container_runtime::{YoukiCliRuntime, YoukiCliConfig};
+    use container_runtime::{YoukiCliConfig, YoukiCliRuntime};
     use container_runtime_interface::{ContainerRuntime, CreateContainerOptions};
-    use orchestrator_shared_types::{ContainerConfig, NodeResources, PortMapping, NodeId, Keypair};
+    use orchestrator_shared_types::{ContainerConfig, Keypair, NodeId, NodeResources, PortMapping};
     use std::collections::HashMap;
     use std::path::PathBuf;
     use std::time::Duration;
@@ -45,7 +45,9 @@ mod tests {
             stop_timeout: Duration::from_secs(10),
         };
 
-        YoukiCliRuntime::with_config(config).await.map_err(|e| e.to_string())
+        YoukiCliRuntime::with_config(config)
+            .await
+            .map_err(|e| e.to_string())
     }
 
     #[tokio::test]
@@ -72,7 +74,9 @@ mod tests {
         let workload_id = Uuid::new_v4();
 
         // Initialize node
-        runtime.init_node(node_id).await
+        runtime
+            .init_node(node_id)
+            .await
             .expect("Failed to init node");
 
         // Create container config for nginx
@@ -82,13 +86,11 @@ mod tests {
             command: None, // Use default nginx command
             args: None,
             env_vars: HashMap::new(),
-            ports: vec![
-                PortMapping {
-                    container_port: 80,
-                    host_port: None,
-                    protocol: "tcp".to_string(),
-                },
-            ],
+            ports: vec![PortMapping {
+                container_port: 80,
+                host_port: None,
+                protocol: "tcp".to_string(),
+            }],
             resource_requests: NodeResources {
                 cpu_cores: 0.5,
                 memory_mb: 128,
@@ -103,7 +105,9 @@ mod tests {
 
         // Create and start container
         println!("Creating nginx container...");
-        let container_id = runtime.create_container(&config, &options).await
+        let container_id = runtime
+            .create_container(&config, &options)
+            .await
             .expect("Failed to create container");
         println!("Created container: {}", container_id);
 
@@ -111,7 +115,9 @@ mod tests {
         tokio::time::sleep(Duration::from_secs(5)).await;
 
         // Check container status
-        let status = runtime.get_container_status(&container_id).await
+        let status = runtime
+            .get_container_status(&container_id)
+            .await
             .expect("Failed to get container status");
         println!("Container status: {:?}", status);
         assert!(
@@ -121,7 +127,9 @@ mod tests {
         );
 
         // List containers on node
-        let containers = runtime.list_containers(node_id).await
+        let containers = runtime
+            .list_containers(node_id)
+            .await
             .expect("Failed to list containers");
         assert!(
             containers.iter().any(|c| c.id == container_id),
@@ -145,7 +153,9 @@ mod tests {
 
         // Stop container
         println!("Stopping container...");
-        runtime.stop_container(&container_id).await
+        runtime
+            .stop_container(&container_id)
+            .await
             .expect("Failed to stop container");
 
         // Verify stopped
@@ -155,15 +165,14 @@ mod tests {
 
         // Remove container
         println!("Removing container...");
-        runtime.remove_container(&container_id).await
+        runtime
+            .remove_container(&container_id)
+            .await
             .expect("Failed to remove container");
 
         // Verify removed
         let status = runtime.get_container_status(&container_id).await;
-        assert!(
-            status.is_err(),
-            "Container should be removed"
-        );
+        assert!(status.is_err(), "Container should be removed");
 
         println!("Test completed successfully!");
     }
@@ -190,7 +199,9 @@ mod tests {
         let node_id = generate_node_id();
         let workload_id = Uuid::new_v4();
 
-        runtime.init_node(node_id).await
+        runtime
+            .init_node(node_id)
+            .await
             .expect("Failed to init node");
 
         // Create a simple busybox container that echoes and exits
@@ -201,7 +212,10 @@ mod tests {
             name: "busybox-test".to_string(),
             image: "busybox:latest".to_string(),
             command: Some(vec!["/bin/sh".to_string()]),
-            args: Some(vec!["-c".to_string(), "echo 'Hello from container!' && sleep 5".to_string()]),
+            args: Some(vec![
+                "-c".to_string(),
+                "echo 'Hello from container!' && sleep 5".to_string(),
+            ]),
             env_vars,
             ports: vec![],
             resource_requests: NodeResources {
@@ -217,7 +231,9 @@ mod tests {
         };
 
         println!("Creating busybox container...");
-        let container_id = runtime.create_container(&config, &options).await
+        let container_id = runtime
+            .create_container(&config, &options)
+            .await
             .expect("Failed to create container");
         println!("Created container: {}", container_id);
 
@@ -258,7 +274,10 @@ mod tests {
 
         // Should fail gracefully with a clear error
         let result = YoukiCliRuntime::with_config(config).await;
-        assert!(result.is_err(), "Should fail when youki binary doesn't exist");
+        assert!(
+            result.is_err(),
+            "Should fail when youki binary doesn't exist"
+        );
 
         let err = result.err().unwrap();
         let err_msg = err.to_string();

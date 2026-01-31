@@ -42,7 +42,10 @@ impl WebSocketState {
     }
 
     /// Create state with event hub and network bridge.
-    pub fn with_network_bridge(event_hub: EventHub, network_bridge: Arc<NetworkEventBridge>) -> Self {
+    pub fn with_network_bridge(
+        event_hub: EventHub,
+        network_bridge: Arc<NetworkEventBridge>,
+    ) -> Self {
         Self {
             event_hub,
             network_bridge: Some(network_bridge),
@@ -63,9 +66,7 @@ pub async fn events_handler_with_bridge(
     ws: WebSocketUpgrade,
     State(state): State<WebSocketState>,
 ) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| {
-        handle_socket(socket, state.event_hub, state.network_bridge)
-    })
+    ws.on_upgrade(move |socket| handle_socket(socket, state.event_hub, state.network_bridge))
 }
 
 /// Handle an individual WebSocket connection.
@@ -243,13 +244,21 @@ async fn handle_client_message(
                 "Client subscribing to topics"
             );
 
-            event_hub.update_subscription(client_id, &topics, true).await;
+            event_hub
+                .update_subscription(client_id, &topics, true)
+                .await;
 
             // Also update network bridge subscriptions for P2P topics
             if let Some(bridge) = network_bridge {
-                let p2p_topics: Vec<_> = topics.iter().filter(|t| t.is_p2p_topic()).copied().collect();
+                let p2p_topics: Vec<_> = topics
+                    .iter()
+                    .filter(|t| t.is_p2p_topic())
+                    .copied()
+                    .collect();
                 if !p2p_topics.is_empty() {
-                    bridge.update_client_subscriptions(client_id, p2p_topics, true).await;
+                    bridge
+                        .update_client_subscriptions(client_id, p2p_topics, true)
+                        .await;
                 }
             }
 
@@ -265,13 +274,21 @@ async fn handle_client_message(
                 "Client unsubscribing from topics"
             );
 
-            event_hub.update_subscription(client_id, &topics, false).await;
+            event_hub
+                .update_subscription(client_id, &topics, false)
+                .await;
 
             // Also update network bridge subscriptions
             if let Some(bridge) = network_bridge {
-                let p2p_topics: Vec<_> = topics.iter().filter(|t| t.is_p2p_topic()).copied().collect();
+                let p2p_topics: Vec<_> = topics
+                    .iter()
+                    .filter(|t| t.is_p2p_topic())
+                    .copied()
+                    .collect();
                 if !p2p_topics.is_empty() {
-                    bridge.update_client_subscriptions(client_id, p2p_topics, false).await;
+                    bridge
+                        .update_client_subscriptions(client_id, p2p_topics, false)
+                        .await;
                 }
             }
 
@@ -288,10 +305,7 @@ async fn handle_client_message(
         }
         ClientMessage::Ping => {
             // Respond with pong
-            let pong = StreamEvent::new(
-                EventType::Heartbeat,
-                serde_json::json!({ "pong": true }),
-            );
+            let pong = StreamEvent::new(EventType::Heartbeat, serde_json::json!({ "pong": true }));
             let json = serde_json::to_string(&pong)?;
             ws_sender.send(Message::Text(json.into())).await?;
         }
@@ -304,12 +318,8 @@ async fn handle_client_message(
         } => {
             if let Some(bridge) = network_bridge {
                 let peer_id = bridge.local_peer_id().await;
-                let gradient = GradientMessage::new(
-                    peer_id,
-                    cpu_available,
-                    memory_available,
-                    disk_available,
-                );
+                let gradient =
+                    GradientMessage::new(peer_id, cpu_available, memory_available, disk_available);
 
                 match bridge.publish_gradient(gradient).await {
                     Ok(_) => {
@@ -324,7 +334,8 @@ async fn handle_client_message(
                         ws_sender.send(Message::Text(json.into())).await?;
                     }
                     Err(e) => {
-                        let error = StreamEvent::error(format!("Failed to publish gradient: {}", e));
+                        let error =
+                            StreamEvent::error(format!("Failed to publish gradient: {}", e));
                         let json = serde_json::to_string(&error)?;
                         ws_sender.send(Message::Text(json.into())).await?;
                     }
@@ -356,7 +367,9 @@ async fn handle_client_message(
                 };
 
                 let election = match election_phase {
-                    ElectionPhase::Prepare => ElectionMessage::prepare(proposer_id, round, ballot, 3),
+                    ElectionPhase::Prepare => {
+                        ElectionMessage::prepare(proposer_id, round, ballot, 3)
+                    }
                     ElectionPhase::Elected => ElectionMessage::elected(proposer_id, round, ballot),
                     _ => ElectionMessage::prepare(proposer_id, round, ballot, 3),
                 };
@@ -375,7 +388,8 @@ async fn handle_client_message(
                         ws_sender.send(Message::Text(json.into())).await?;
                     }
                     Err(e) => {
-                        let error = StreamEvent::error(format!("Failed to publish election: {}", e));
+                        let error =
+                            StreamEvent::error(format!("Failed to publish election: {}", e));
                         let json = serde_json::to_string(&error)?;
                         ws_sender.send(Message::Text(json.into())).await?;
                     }
@@ -387,7 +401,11 @@ async fn handle_client_message(
             }
         }
 
-        ClientMessage::PublishCredit { to, amount, resource } => {
+        ClientMessage::PublishCredit {
+            to,
+            amount,
+            resource,
+        } => {
             if let Some(bridge) = network_bridge {
                 let peer_id = bridge.local_peer_id().await;
 
@@ -534,7 +552,8 @@ mod tests {
         hub.register_client("test-client".to_string()).await;
 
         // Subscribe to nodes
-        hub.update_subscription("test-client", &[EventTopic::Nodes], true).await;
+        hub.update_subscription("test-client", &[EventTopic::Nodes], true)
+            .await;
 
         // Check subscription
         let topics = hub.get_subscription("test-client").await.unwrap();

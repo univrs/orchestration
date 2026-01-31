@@ -66,7 +66,12 @@ impl ApiState {
         cluster_manager: Arc<dyn ClusterManager>,
         workload_tx: mpsc::Sender<WorkloadDefinition>,
     ) -> Self {
-        Self::new(state_store, cluster_manager, workload_tx, AuthConfig::disabled())
+        Self::new(
+            state_store,
+            cluster_manager,
+            workload_tx,
+            AuthConfig::disabled(),
+        )
     }
 
     /// Set the container runtime for log access.

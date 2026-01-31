@@ -150,7 +150,10 @@ impl ResourceLimits {
             if mb >= self.memory.warn_mb {
                 ResourceCheck::Warning {
                     resource: "Memory".to_string(),
-                    message: format!("Memory usage ({} MB) approaching limit ({} MB)", mb, self.memory.max_mb),
+                    message: format!(
+                        "Memory usage ({} MB) approaching limit ({} MB)",
+                        mb, self.memory.max_mb
+                    ),
                 }
             } else {
                 ResourceCheck::Ok

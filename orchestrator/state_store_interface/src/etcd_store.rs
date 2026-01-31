@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use etcd_client::{Client, GetOptions, Error as EtcdError};
+use etcd_client::{Client, Error as EtcdError, GetOptions};
 use orchestrator_shared_types::{
     Node, NodeId, OrchestrationError, Result, WorkloadDefinition, WorkloadId, WorkloadInstance,
 };
@@ -23,9 +23,9 @@ impl EtcdStateStore {
     /// # Arguments
     /// * `endpoints` - List of etcd endpoints (e.g., ["127.0.0.1:2379"])
     pub async fn new(endpoints: Vec<String>) -> Result<Self> {
-        let client = Client::connect(endpoints, None)
-            .await
-            .map_err(|e| StateStoreError::ConnectionError(format!("Failed to connect to etcd: {}", e)))?;
+        let client = Client::connect(endpoints, None).await.map_err(|e| {
+            StateStoreError::ConnectionError(format!("Failed to connect to etcd: {}", e))
+        })?;
 
         Ok(Self {
             client: Arc::new(tokio::sync::Mutex::new(client)),
@@ -35,9 +35,9 @@ impl EtcdStateStore {
 
     /// Create with custom prefix
     pub async fn with_prefix(endpoints: Vec<String>, prefix: String) -> Result<Self> {
-        let client = Client::connect(endpoints, None)
-            .await
-            .map_err(|e| StateStoreError::ConnectionError(format!("Failed to connect to etcd: {}", e)))?;
+        let client = Client::connect(endpoints, None).await.map_err(|e| {
+            StateStoreError::ConnectionError(format!("Failed to connect to etcd: {}", e))
+        })?;
 
         Ok(Self {
             client: Arc::new(tokio::sync::Mutex::new(client)),
@@ -97,8 +97,9 @@ impl EtcdStateStore {
             .map_err(|e| StateStoreError::InternalError(format!("etcd get failed: {}", e)))?;
 
         if let Some(kv) = response.kvs().first() {
-            let json = kv.value_str()
-                .map_err(|e| StateStoreError::SerializationError(format!("Invalid UTF-8: {}", e)))?;
+            let json = kv.value_str().map_err(|e| {
+                StateStoreError::SerializationError(format!("Invalid UTF-8: {}", e))
+            })?;
 
             let value: T = serde_json::from_str(json)
                 .map_err(|e| StateStoreError::SerializationError(e.to_string()))?;
@@ -110,7 +111,10 @@ impl EtcdStateStore {
     }
 
     // Helper to list all values with a prefix
-    async fn list_with_prefix<T: serde::de::DeserializeOwned>(&self, prefix: String) -> Result<Vec<T>> {
+    async fn list_with_prefix<T: serde::de::DeserializeOwned>(
+        &self,
+        prefix: String,
+    ) -> Result<Vec<T>> {
         let mut client = self.client.lock().await;
         let get_options = GetOptions::new().with_prefix();
 
@@ -121,8 +125,9 @@ impl EtcdStateStore {
 
         let mut results = Vec::new();
         for kv in response.kvs() {
-            let json = kv.value_str()
-                .map_err(|e| StateStoreError::SerializationError(format!("Invalid UTF-8: {}", e)))?;
+            let json = kv.value_str().map_err(|e| {
+                StateStoreError::SerializationError(format!("Invalid UTF-8: {}", e))
+            })?;
 
             let value: T = serde_json::from_str(json)
                 .map_err(|e| StateStoreError::SerializationError(e.to_string()))?;
@@ -228,7 +233,10 @@ impl StateStore for EtcdStateStore {
         self.get_value(key).await
     }
 
-    async fn list_instances_for_workload(&self, workload_id: &WorkloadId) -> Result<Vec<WorkloadInstance>> {
+    async fn list_instances_for_workload(
+        &self,
+        workload_id: &WorkloadId,
+    ) -> Result<Vec<WorkloadInstance>> {
         let prefix = self.instances_for_workload_prefix(workload_id);
         self.list_with_prefix(prefix).await
     }
@@ -280,7 +288,7 @@ impl StateStore for EtcdStateStore {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use orchestrator_shared_types::{NodeStatus, NodeResources, WorkloadInstanceStatus, Keypair};
+    use orchestrator_shared_types::{Keypair, NodeResources, NodeStatus, WorkloadInstanceStatus};
     use std::collections::HashMap;
     use uuid::Uuid;
 

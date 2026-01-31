@@ -7,8 +7,8 @@
 //! - Creating symlinks
 //! - Preparing a minimal rootfs for testing
 
-use std::path::{Path, PathBuf};
 use std::io;
+use std::path::{Path, PathBuf};
 use thiserror::Error;
 use tracing::{debug, info};
 
@@ -19,10 +19,7 @@ pub enum RootfsError {
     Io(#[from] io::Error),
 
     #[error("Failed to create directory {path}: {source}")]
-    CreateDir {
-        path: PathBuf,
-        source: io::Error,
-    },
+    CreateDir { path: PathBuf, source: io::Error },
 
     #[error("Failed to create symlink {link} -> {target}: {source}")]
     CreateSymlink {
@@ -83,14 +80,62 @@ pub struct DeviceNode {
 
 /// Standard device nodes for a container.
 pub const STANDARD_DEVICES: &[DeviceNode] = &[
-    DeviceNode { path: "dev/null", device_type: 'c', major: 1, minor: 3, mode: 0o666 },
-    DeviceNode { path: "dev/zero", device_type: 'c', major: 1, minor: 5, mode: 0o666 },
-    DeviceNode { path: "dev/full", device_type: 'c', major: 1, minor: 7, mode: 0o666 },
-    DeviceNode { path: "dev/random", device_type: 'c', major: 1, minor: 8, mode: 0o666 },
-    DeviceNode { path: "dev/urandom", device_type: 'c', major: 1, minor: 9, mode: 0o666 },
-    DeviceNode { path: "dev/tty", device_type: 'c', major: 5, minor: 0, mode: 0o666 },
-    DeviceNode { path: "dev/console", device_type: 'c', major: 5, minor: 1, mode: 0o620 },
-    DeviceNode { path: "dev/ptmx", device_type: 'c', major: 5, minor: 2, mode: 0o666 },
+    DeviceNode {
+        path: "dev/null",
+        device_type: 'c',
+        major: 1,
+        minor: 3,
+        mode: 0o666,
+    },
+    DeviceNode {
+        path: "dev/zero",
+        device_type: 'c',
+        major: 1,
+        minor: 5,
+        mode: 0o666,
+    },
+    DeviceNode {
+        path: "dev/full",
+        device_type: 'c',
+        major: 1,
+        minor: 7,
+        mode: 0o666,
+    },
+    DeviceNode {
+        path: "dev/random",
+        device_type: 'c',
+        major: 1,
+        minor: 8,
+        mode: 0o666,
+    },
+    DeviceNode {
+        path: "dev/urandom",
+        device_type: 'c',
+        major: 1,
+        minor: 9,
+        mode: 0o666,
+    },
+    DeviceNode {
+        path: "dev/tty",
+        device_type: 'c',
+        major: 5,
+        minor: 0,
+        mode: 0o666,
+    },
+    DeviceNode {
+        path: "dev/console",
+        device_type: 'c',
+        major: 5,
+        minor: 1,
+        mode: 0o620,
+    },
+    DeviceNode {
+        path: "dev/ptmx",
+        device_type: 'c',
+        major: 5,
+        minor: 2,
+        mode: 0o666,
+    },
 ];
 
 /// Standard symlinks in /dev.
@@ -339,10 +384,7 @@ impl Rootfs {
 /// 1. Pull the image from a registry
 /// 2. Extract each layer in order
 /// 3. Apply whiteouts for deleted files
-pub async fn extract_image_layer(
-    _rootfs: &Path,
-    _layer_path: &Path,
-) -> Result<(), RootfsError> {
+pub async fn extract_image_layer(_rootfs: &Path, _layer_path: &Path) -> Result<(), RootfsError> {
     // Placeholder - actual implementation would use tar extraction
     // with proper handling of OCI whiteout files
     Err(RootfsError::ImageExtraction(

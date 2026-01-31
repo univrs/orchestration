@@ -63,7 +63,7 @@ pub mod handlers;
 pub mod routes;
 pub mod state;
 
-pub use auth::{AuthConfig, AuthInfo, SignedRequestHeaders, sign_request};
+pub use auth::{sign_request, AuthConfig, AuthInfo, SignedRequestHeaders};
 pub use error::{ApiError, ApiResult};
-pub use routes::{ApiServer, ApiServerConfig, build_router};
+pub use routes::{build_router, ApiServer, ApiServerConfig};
 pub use state::ApiState;

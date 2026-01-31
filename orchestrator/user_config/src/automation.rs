@@ -215,10 +215,7 @@ impl AutomationBoundary {
         Self {
             level: AutomationLevel::Extended,
             category_overrides: HashMap::new(),
-            always_require_approval: vec![
-                "rm -rf /".to_string(),
-                "DROP DATABASE".to_string(),
-            ],
+            always_require_approval: vec!["rm -rf /".to_string(), "DROP DATABASE".to_string()],
             always_allow: vec!["*".to_string()],
             max_consecutive_operations: 100,
             cooldown_seconds: 0,
@@ -233,7 +230,10 @@ impl AutomationBoundary {
         for pattern in &self.always_require_approval {
             if Self::matches_pattern(pattern, operation) {
                 return AutomationDecision::RequiresApproval {
-                    reason: format!("Operation matches always-require-approval pattern: {}", pattern),
+                    reason: format!(
+                        "Operation matches always-require-approval pattern: {}",
+                        pattern
+                    ),
                 };
             }
         }
@@ -442,7 +442,9 @@ mod tests {
     #[test]
     fn test_category_override() {
         let mut boundary = AutomationBoundary::default();
-        boundary.category_overrides.insert(OperationCategory::SafeExecute, false);
+        boundary
+            .category_overrides
+            .insert(OperationCategory::SafeExecute, false);
 
         let decision = boundary.is_automated(OperationCategory::SafeExecute, "cargo build");
         // Note: "cargo build" is in always_allow, so it should still be allowed

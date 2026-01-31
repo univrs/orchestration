@@ -21,10 +21,10 @@
 //!     .await?;
 //! ```
 
-mod spec;
-mod rootfs;
 mod builder;
+mod rootfs;
+mod spec;
 
-pub use spec::*;
-pub use rootfs::*;
 pub use builder::*;
+pub use rootfs::*;
+pub use spec::*;

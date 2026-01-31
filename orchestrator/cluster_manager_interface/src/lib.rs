@@ -1,7 +1,7 @@
 use async_trait::async_trait;
+use downcast_rs::{impl_downcast, Downcast};
 use orchestrator_shared_types::{Node, NodeId, OrchestrationError, Result};
 use tokio::sync::broadcast;
-use downcast_rs::{Downcast, impl_downcast};
 
 /// Represents an event related to cluster membership or node status.
 #[derive(Debug, Clone, PartialEq)]
@@ -26,8 +26,7 @@ pub trait ClusterManager: Downcast + Send + Sync {
     // For example, the manager might periodically ping nodes.
 }
 
-impl_downcast!(ClusterManager); 
-
+impl_downcast!(ClusterManager);
 
 // Example of a specific error for this interface
 #[derive(Debug, thiserror::Error)]

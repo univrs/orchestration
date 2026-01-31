@@ -3,7 +3,9 @@
 //! Provides counters, gauges, and histograms for monitoring cluster health,
 //! workload status, and operational performance.
 
-use metrics::{counter, gauge, histogram, describe_counter, describe_gauge, describe_histogram, Label};
+use metrics::{
+    counter, describe_counter, describe_gauge, describe_histogram, gauge, histogram, Label,
+};
 use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -55,10 +57,7 @@ impl MetricsRegistry {
         );
 
         // Workload metrics
-        describe_gauge!(
-            "orchestrator_workloads_total",
-            "Total number of workloads"
-        );
+        describe_gauge!("orchestrator_workloads_total", "Total number of workloads");
         describe_gauge!(
             "orchestrator_workload_replicas_desired",
             "Desired replicas for a workload"
@@ -328,7 +327,8 @@ impl OrchestratorMetrics {
     /// Record container operation duration.
     pub fn record_container_operation_duration(&self, operation: &str, duration_secs: f64) {
         let labels = [("operation", operation.to_string())];
-        histogram!("orchestrator_container_operation_duration_seconds", &labels).record(duration_secs);
+        histogram!("orchestrator_container_operation_duration_seconds", &labels)
+            .record(duration_secs);
     }
 
     // === Cluster Manager Metrics ===
@@ -418,7 +418,9 @@ impl MetricTimer {
 impl Drop for MetricTimer {
     fn drop(&mut self) {
         let duration = self.start.elapsed().as_secs_f64();
-        let labels: Vec<Label> = self.labels.iter()
+        let labels: Vec<Label> = self
+            .labels
+            .iter()
             .map(|(k, v)| Label::new(*k, v.clone()))
             .collect();
 
@@ -461,8 +463,7 @@ mod tests {
 
     #[test]
     fn test_metric_timer() {
-        let _timer = MetricTimer::new("test_duration_seconds")
-            .with_label("operation", "test");
+        let _timer = MetricTimer::new("test_duration_seconds").with_label("operation", "test");
         // Timer records duration on drop
     }
 }

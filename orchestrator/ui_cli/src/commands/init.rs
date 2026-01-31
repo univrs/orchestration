@@ -121,7 +121,10 @@ pub async fn execute(args: InitArgs) -> anyhow::Result<()> {
 
     output::section("Next Steps");
     println!("  1. Share your public key with cluster administrators");
-    println!("  2. Configure trust policy: {}", paths.trust_policy_file().display());
+    println!(
+        "  2. Configure trust policy: {}",
+        paths.trust_policy_file().display()
+    );
     println!("  3. Connect to cluster: orch status --api-url <URL>");
 
     Ok(())

@@ -6,11 +6,11 @@
 //! - Pulling and extracting image layers
 //! - Managing a local image cache
 
-use std::path::{Path, PathBuf};
+use serde::{Deserialize, Serialize};
 use std::io;
+use std::path::{Path, PathBuf};
 use thiserror::Error;
 use tracing::info;
-use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "image-pull")]
 use std::io::Write;
@@ -23,7 +23,7 @@ use {
     flate2::read::GzDecoder,
     futures_util::StreamExt,
     reqwest::Client,
-    sha2::{Sha256, Digest},
+    sha2::{Digest, Sha256},
     tar::Archive,
 };
 
@@ -75,7 +75,11 @@ pub struct ImageReference {
 
 impl ImageReference {
     /// Create a new image reference.
-    pub fn new(registry: impl Into<String>, repository: impl Into<String>, tag: impl Into<String>) -> Self {
+    pub fn new(
+        registry: impl Into<String>,
+        repository: impl Into<String>,
+        tag: impl Into<String>,
+    ) -> Self {
         Self {
             registry: registry.into(),
             repository: repository.into(),
@@ -172,7 +176,9 @@ impl ImageManager {
     pub fn parse_image_ref(image: &str) -> Result<ImageReference, ImageError> {
         let image = image.trim();
         if image.is_empty() {
-            return Err(ImageError::InvalidReference("empty image reference".to_string()));
+            return Err(ImageError::InvalidReference(
+                "empty image reference".to_string(),
+            ));
         }
 
         // Check for digest reference
@@ -203,7 +209,10 @@ impl ImageManager {
         let (registry, repository) = match parts.len() {
             1 => {
                 // Simple name like "alpine"
-                ("registry-1.docker.io".to_string(), format!("library/{}", parts[0]))
+                (
+                    "registry-1.docker.io".to_string(),
+                    format!("library/{}", parts[0]),
+                )
             }
             2 => {
                 // Could be user/repo or registry/repo
@@ -213,7 +222,10 @@ impl ImageManager {
                     (first.to_string(), parts[1].to_string())
                 } else {
                     // It's user/repo on Docker Hub
-                    ("registry-1.docker.io".to_string(), format!("{}/{}", parts[0], parts[1]))
+                    (
+                        "registry-1.docker.io".to_string(),
+                        format!("{}/{}", parts[0], parts[1]),
+                    )
                 }
             }
             _ => {
@@ -392,7 +404,8 @@ impl ImageManager {
         image_ref: &ImageReference,
         manifest: &Manifest,
     ) -> Result<PathBuf, ImageError> {
-        let image_id = format!("{}_{}",
+        let image_id = format!(
+            "{}_{}",
             image_ref.repository.replace('/', "_"),
             image_ref.tag
         );
@@ -404,14 +417,23 @@ impl ImageManager {
             return Ok(rootfs_path);
         }
 
-        info!("Extracting {} layers to {:?}", manifest.layers.len(), rootfs_path);
+        info!(
+            "Extracting {} layers to {:?}",
+            manifest.layers.len(),
+            rootfs_path
+        );
 
         // Create rootfs directory
         std::fs::create_dir_all(&rootfs_path)?;
 
         // Pull and extract each layer in order
         for (i, layer) in manifest.layers.iter().enumerate() {
-            info!("Processing layer {}/{}: {}", i + 1, manifest.layers.len(), layer.digest);
+            info!(
+                "Processing layer {}/{}: {}",
+                i + 1,
+                manifest.layers.len(),
+                layer.digest
+            );
 
             let layer_path = self.pull_layer(image_ref, layer).await?;
 
@@ -435,7 +457,12 @@ impl ImageManager {
 
     /// Extract a single layer tarball to the rootfs.
     #[cfg(feature = "image-pull")]
-    fn extract_layer(&self, layer_path: &Path, rootfs: &Path, media_type: &str) -> Result<(), ImageError> {
+    fn extract_layer(
+        &self,
+        layer_path: &Path,
+        rootfs: &Path,
+        media_type: &str,
+    ) -> Result<(), ImageError> {
         let file = std::fs::File::open(layer_path)?;
 
         // Determine if layer is gzipped
@@ -459,7 +486,11 @@ impl ImageManager {
 
     /// Extract a tar archive, handling OCI whiteouts.
     #[cfg(feature = "image-pull")]
-    fn extract_archive<R: io::Read>(&self, archive: &mut Archive<R>, rootfs: &Path) -> Result<(), ImageError> {
+    fn extract_archive<R: io::Read>(
+        &self,
+        archive: &mut Archive<R>,
+        rootfs: &Path,
+    ) -> Result<(), ImageError> {
         for entry in archive.entries()? {
             let mut entry = entry?;
             let path = entry.path()?;
@@ -542,7 +573,8 @@ impl ImageManager {
         let image_ref = Self::parse_image_ref(image)?;
 
         // Check if already extracted
-        let image_id = format!("{}_{}",
+        let image_id = format!(
+            "{}_{}",
             image_ref.repository.replace('/', "_"),
             image_ref.tag
         );
@@ -589,7 +621,8 @@ impl ImageManager {
     /// Remove a cached image.
     pub fn remove_cached(&self, image: &str) -> Result<(), ImageError> {
         let image_ref = Self::parse_image_ref(image)?;
-        let image_id = format!("{}_{}",
+        let image_id = format!(
+            "{}_{}",
             image_ref.repository.replace('/', "_"),
             image_ref.tag
         );
@@ -691,7 +724,10 @@ mod tests {
     #[test]
     fn test_image_reference_display() {
         let ref_ = ImageReference::new("registry-1.docker.io", "library/alpine", "latest");
-        assert_eq!(ref_.to_string(), "registry-1.docker.io/library/alpine:latest");
+        assert_eq!(
+            ref_.to_string(),
+            "registry-1.docker.io/library/alpine:latest"
+        );
         assert_eq!(ref_.full_name(), "library/alpine:latest");
     }
 

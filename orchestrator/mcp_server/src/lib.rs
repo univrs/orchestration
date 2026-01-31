@@ -12,13 +12,13 @@
 //! The MCP server wraps the orchestrator's state store and exposes it via JSON-RPC 2.0
 //! over stdio transport (for Claude Code integration) or HTTP (for remote access).
 
-pub mod tools;
 pub mod resources;
 pub mod server;
+pub mod tools;
 
 pub use server::OrchestratorMcpServer;
-pub use server::{JsonRpcRequest, JsonRpcResponse, JsonRpcError};
-pub use server::{PARSE_ERROR, INVALID_REQUEST, METHOD_NOT_FOUND, INVALID_PARAMS, INTERNAL_ERROR};
+pub use server::{JsonRpcError, JsonRpcRequest, JsonRpcResponse};
+pub use server::{INTERNAL_ERROR, INVALID_PARAMS, INVALID_REQUEST, METHOD_NOT_FOUND, PARSE_ERROR};
 
 // Re-export common types
 pub use rmcp;

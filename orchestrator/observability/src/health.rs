@@ -2,11 +2,11 @@
 //!
 //! Provides component health tracking and aggregated health status.
 
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use chrono::{DateTime, Utc};
 
 /// Health status of a component.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -259,17 +259,20 @@ impl HealthChecker {
 
     /// Update a component to healthy status.
     pub async fn mark_healthy(&self, component: impl Into<String>) {
-        self.set_component_health(ComponentHealth::healthy(component)).await;
+        self.set_component_health(ComponentHealth::healthy(component))
+            .await;
     }
 
     /// Update a component to degraded status.
     pub async fn mark_degraded(&self, component: impl Into<String>, message: impl Into<String>) {
-        self.set_component_health(ComponentHealth::degraded(component, message)).await;
+        self.set_component_health(ComponentHealth::degraded(component, message))
+            .await;
     }
 
     /// Update a component to unhealthy status.
     pub async fn mark_unhealthy(&self, component: impl Into<String>, message: impl Into<String>) {
-        self.set_component_health(ComponentHealth::unhealthy(component, message)).await;
+        self.set_component_health(ComponentHealth::unhealthy(component, message))
+            .await;
     }
 
     /// Remove a component from health tracking.
@@ -291,10 +294,22 @@ mod tests {
 
     #[test]
     fn test_health_status_ordering() {
-        assert_eq!(HealthStatus::Healthy.worst(HealthStatus::Healthy), HealthStatus::Healthy);
-        assert_eq!(HealthStatus::Healthy.worst(HealthStatus::Degraded), HealthStatus::Degraded);
-        assert_eq!(HealthStatus::Healthy.worst(HealthStatus::Unhealthy), HealthStatus::Unhealthy);
-        assert_eq!(HealthStatus::Degraded.worst(HealthStatus::Unhealthy), HealthStatus::Unhealthy);
+        assert_eq!(
+            HealthStatus::Healthy.worst(HealthStatus::Healthy),
+            HealthStatus::Healthy
+        );
+        assert_eq!(
+            HealthStatus::Healthy.worst(HealthStatus::Degraded),
+            HealthStatus::Degraded
+        );
+        assert_eq!(
+            HealthStatus::Healthy.worst(HealthStatus::Unhealthy),
+            HealthStatus::Unhealthy
+        );
+        assert_eq!(
+            HealthStatus::Degraded.worst(HealthStatus::Unhealthy),
+            HealthStatus::Unhealthy
+        );
     }
 
     #[test]
