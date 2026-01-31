@@ -99,7 +99,7 @@ impl Scheduler for SimpleScheduler {
             if let Some(node) = node_iter.next() {
                 // TODO: Actual resource checking against node.resources_allocatable
                 // and request.workload_definition.containers[*].resource_requests
-                decisions.push(ScheduleDecision::AssignNode(node.id));
+                decisions.push(ScheduleDecision::AssignNode(node.id.clone()));
             } else {
                 // This case should not be hit if available_nodes is not empty due to cycle()
                 // but as a safeguard:

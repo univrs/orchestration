@@ -301,7 +301,7 @@ impl ScoringResult {
         // Build final scores map
         let final_scores: HashMap<NodeId, f64> = ranked_nodes
             .iter()
-            .map(|score| (score.node_id, score.contribution))
+            .map(|score| (score.node_id.clone(), score.contribution))
             .collect();
 
         Self {

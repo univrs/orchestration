@@ -473,9 +473,9 @@ impl Filter for ResourceFeasibilityChecker {
         for node in nodes {
             match self.check_feasibility(pod, node) {
                 Ok(()) => {
-                    eligible_nodes.push(node.id);
+                    eligible_nodes.push(node.id.clone());
                     admission_reasons.insert(
-                        node.id,
+                        node.id.clone(),
                         vec![format!(
                             "Sufficient resources: CPU={:.2}/{:.2}, Memory={}/{}, Disk={}/{}",
                             pod.resources.cpu_cores,
@@ -488,7 +488,7 @@ impl Filter for ResourceFeasibilityChecker {
                     );
                 }
                 Err(reason) => {
-                    filtered_nodes.push((node.id, reason));
+                    filtered_nodes.push((node.id.clone(), reason));
                 }
             }
         }
