@@ -65,7 +65,6 @@ jobs:
       - name: Create stub sibling dependencies
         run: |
           mkdir -p univrs-identity/src univrs-state/src
-
           cat > univrs-identity/Cargo.toml << 'EOF'
           [package]
           name = "univrs-identity"
@@ -74,24 +73,13 @@ jobs:
           [lib]
           path = "src/lib.rs"
           [dependencies]
-          ed25519-dalek = { version = "2", features = ["rand_core"] }
+          ed25519-dalek = { version = "2", features = ["rand_core", "serde"] }
           rand = "0.8"
-          thiserror = "1"
+          serde = { version = "1", features = ["derive"] }
           EOF
-
           cat > univrs-identity/src/lib.rs << 'EOF'
-          use ed25519_dalek::{SigningKey, VerifyingKey, Signature, Signer, Verifier};
-          use rand::rngs::OsRng;
-          #[derive(Clone)]
-          pub struct Identity { signing_key: SigningKey }
-          impl Identity {
-              pub fn generate() -> Self { Self { signing_key: SigningKey::generate(&mut OsRng) } }
-              pub fn public_key(&self) -> VerifyingKey { self.signing_key.verifying_key() }
-              pub fn sign(&self, message: &[u8]) -> Signature { self.signing_key.sign(message) }
-              pub fn verify(&self, message: &[u8], signature: &Signature) -> bool { self.public_key().verify(message, signature).is_ok() }
-          }
+          pub use ed25519_dalek::{Signature, SigningKey as Keypair, VerifyingKey as PublicKey};
           EOF
-
           cat > univrs-state/Cargo.toml << 'EOF'
           [package]
           name = "univrs-state"
@@ -100,7 +88,6 @@ jobs:
           [lib]
           path = "src/lib.rs"
           EOF
-
           echo "pub fn placeholder() {}" > univrs-state/src/lib.rs
 
       - name: Build and push multi-arch image

@@ -40,66 +40,34 @@ jobs:
         run: |
           # Create stub Cargo.toml for univrs-identity
           # Note: Cargo.toml references ../../univrs-identity from orchestrator/
-          mkdir -p ../../univrs-identity
+          mkdir -p ../../univrs-identity/src
           cat > ../../univrs-identity/Cargo.toml << 'EOF'
           [package]
           name = "univrs-identity"
           version = "0.1.0"
           edition = "2021"
-
           [lib]
           path = "src/lib.rs"
-
           [dependencies]
-          ed25519-dalek = { version = "2", features = ["rand_core"] }
+          ed25519-dalek = { version = "2", features = ["rand_core", "serde"] }
           rand = "0.8"
-          thiserror = "1"
+          serde = { version = "1", features = ["derive"] }
           EOF
 
-          mkdir -p ../../univrs-identity/src
           cat > ../../univrs-identity/src/lib.rs << 'EOF'
-          use ed25519_dalek::{SigningKey, VerifyingKey, Signature, Signer, Verifier};
-          use rand::rngs::OsRng;
-
-          #[derive(Clone)]
-          pub struct Identity {
-              signing_key: SigningKey,
-          }
-
-          impl Identity {
-              pub fn generate() -> Self {
-                  let mut csprng = OsRng;
-                  Self { signing_key: SigningKey::generate(&mut csprng) }
-              }
-
-              pub fn public_key(&self) -> VerifyingKey {
-                  self.signing_key.verifying_key()
-              }
-
-              pub fn sign(&self, message: &[u8]) -> Signature {
-                  self.signing_key.sign(message)
-              }
-
-              pub fn verify(&self, message: &[u8], signature: &Signature) -> bool {
-                  self.public_key().verify(message, signature).is_ok()
-              }
-          }
+          pub use ed25519_dalek::{Signature, SigningKey as Keypair, VerifyingKey as PublicKey};
           EOF
 
           # Create stub Cargo.toml for univrs-state
-          # Note: Cargo.toml references ../../univrs-state from orchestrator/
-          mkdir -p ../../univrs-state
+          mkdir -p ../../univrs-state/src
           cat > ../../univrs-state/Cargo.toml << 'EOF'
           [package]
           name = "univrs-state"
           version = "0.1.0"
           edition = "2021"
-
           [lib]
           path = "src/lib.rs"
           EOF
-
-          mkdir -p ../../univrs-state/src
           echo "pub fn placeholder() {}" > ../../univrs-state/src/lib.rs
 
       - name: Cache Cargo
@@ -130,9 +98,7 @@ jobs:
 
       - name: Create stub sibling dependencies
         run: |
-          # Note: Cargo.toml references ../../univrs-* from orchestrator/
           mkdir -p ../../univrs-identity/src ../../univrs-state/src
-
           cat > ../../univrs-identity/Cargo.toml << 'EOF'
           [package]
           name = "univrs-identity"
@@ -141,24 +107,13 @@ jobs:
           [lib]
           path = "src/lib.rs"
           [dependencies]
-          ed25519-dalek = { version = "2", features = ["rand_core"] }
+          ed25519-dalek = { version = "2", features = ["rand_core", "serde"] }
           rand = "0.8"
-          thiserror = "1"
+          serde = { version = "1", features = ["derive"] }
           EOF
-
           cat > ../../univrs-identity/src/lib.rs << 'EOF'
-          use ed25519_dalek::{SigningKey, VerifyingKey, Signature, Signer, Verifier};
-          use rand::rngs::OsRng;
-          #[derive(Clone)]
-          pub struct Identity { signing_key: SigningKey }
-          impl Identity {
-              pub fn generate() -> Self { Self { signing_key: SigningKey::generate(&mut OsRng) } }
-              pub fn public_key(&self) -> VerifyingKey { self.signing_key.verifying_key() }
-              pub fn sign(&self, message: &[u8]) -> Signature { self.signing_key.sign(message) }
-              pub fn verify(&self, message: &[u8], signature: &Signature) -> bool { self.public_key().verify(message, signature).is_ok() }
-          }
+          pub use ed25519_dalek::{Signature, SigningKey as Keypair, VerifyingKey as PublicKey};
           EOF
-
           cat > ../../univrs-state/Cargo.toml << 'EOF'
           [package]
           name = "univrs-state"
@@ -167,7 +122,6 @@ jobs:
           [lib]
           path = "src/lib.rs"
           EOF
-
           echo "pub fn placeholder() {}" > ../../univrs-state/src/lib.rs
 
       - name: Cache Cargo
@@ -196,9 +150,7 @@ jobs:
 
       - name: Create stub sibling dependencies
         run: |
-          # Note: Cargo.toml references ../../univrs-* from orchestrator/
           mkdir -p ../../univrs-identity/src ../../univrs-state/src
-
           cat > ../../univrs-identity/Cargo.toml << 'EOF'
           [package]
           name = "univrs-identity"
@@ -207,24 +159,13 @@ jobs:
           [lib]
           path = "src/lib.rs"
           [dependencies]
-          ed25519-dalek = { version = "2", features = ["rand_core"] }
+          ed25519-dalek = { version = "2", features = ["rand_core", "serde"] }
           rand = "0.8"
-          thiserror = "1"
+          serde = { version = "1", features = ["derive"] }
           EOF
-
           cat > ../../univrs-identity/src/lib.rs << 'EOF'
-          use ed25519_dalek::{SigningKey, VerifyingKey, Signature, Signer, Verifier};
-          use rand::rngs::OsRng;
-          #[derive(Clone)]
-          pub struct Identity { signing_key: SigningKey }
-          impl Identity {
-              pub fn generate() -> Self { Self { signing_key: SigningKey::generate(&mut OsRng) } }
-              pub fn public_key(&self) -> VerifyingKey { self.signing_key.verifying_key() }
-              pub fn sign(&self, message: &[u8]) -> Signature { self.signing_key.sign(message) }
-              pub fn verify(&self, message: &[u8], signature: &Signature) -> bool { self.public_key().verify(message, signature).is_ok() }
-          }
+          pub use ed25519_dalek::{Signature, SigningKey as Keypair, VerifyingKey as PublicKey};
           EOF
-
           cat > ../../univrs-state/Cargo.toml << 'EOF'
           [package]
           name = "univrs-state"
@@ -233,7 +174,6 @@ jobs:
           [lib]
           path = "src/lib.rs"
           EOF
-
           echo "pub fn placeholder() {}" > ../../univrs-state/src/lib.rs
 
       - name: Cache Cargo
@@ -264,7 +204,6 @@ jobs:
       - name: Create stub sibling dependencies
         run: |
           mkdir -p univrs-identity/src univrs-state/src
-
           cat > univrs-identity/Cargo.toml << 'EOF'
           [package]
           name = "univrs-identity"
@@ -273,24 +212,13 @@ jobs:
           [lib]
           path = "src/lib.rs"
           [dependencies]
-          ed25519-dalek = { version = "2", features = ["rand_core"] }
+          ed25519-dalek = { version = "2", features = ["rand_core", "serde"] }
           rand = "0.8"
-          thiserror = "1"
+          serde = { version = "1", features = ["derive"] }
           EOF
-
           cat > univrs-identity/src/lib.rs << 'EOF'
-          use ed25519_dalek::{SigningKey, VerifyingKey, Signature, Signer, Verifier};
-          use rand::rngs::OsRng;
-          #[derive(Clone)]
-          pub struct Identity { signing_key: SigningKey }
-          impl Identity {
-              pub fn generate() -> Self { Self { signing_key: SigningKey::generate(&mut OsRng) } }
-              pub fn public_key(&self) -> VerifyingKey { self.signing_key.verifying_key() }
-              pub fn sign(&self, message: &[u8]) -> Signature { self.signing_key.sign(message) }
-              pub fn verify(&self, message: &[u8], signature: &Signature) -> bool { self.public_key().verify(message, signature).is_ok() }
-          }
+          pub use ed25519_dalek::{Signature, SigningKey as Keypair, VerifyingKey as PublicKey};
           EOF
-
           cat > univrs-state/Cargo.toml << 'EOF'
           [package]
           name = "univrs-state"
@@ -299,7 +227,6 @@ jobs:
           [lib]
           path = "src/lib.rs"
           EOF
-
           echo "pub fn placeholder() {}" > univrs-state/src/lib.rs
 
       - name: Set up Docker Buildx
