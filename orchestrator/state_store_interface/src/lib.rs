@@ -144,6 +144,7 @@ pub mod etcd_store;
 pub use sqlite_store::SqliteStateStore;
 
 // Helper function to create appropriate store based on config (sync version for non-SQLite)
+#[allow(clippy::result_large_err)]
 pub fn create_state_store(config: StateStoreConfig) -> Result<Arc<dyn StateStore>> {
     match config {
         #[cfg(feature = "sqlite")]
@@ -170,6 +171,7 @@ pub fn create_state_store(config: StateStoreConfig) -> Result<Arc<dyn StateStore
 
 /// Async helper function to create appropriate store based on config
 /// Required for SQLite backend which needs async initialization
+#[allow(clippy::result_large_err)]
 pub async fn create_state_store_async(config: StateStoreConfig) -> Result<Arc<dyn StateStore>> {
     match config {
         #[cfg(feature = "sqlite")]
